@@ -3,13 +3,13 @@
 // Internal JSC sys bindings — exposed crate-wide so ffi/ can use crate::jsc_sys::*
 pub(crate) mod jsc_sys;
 
-pub mod ffi;
-pub mod runtime;
-pub mod promise;
 pub mod deterministic;
-pub mod modules;
+pub mod ffi;
 pub mod globals;
 pub mod metrics;
+pub mod modules;
+pub mod promise;
+pub mod runtime;
 
 // Core execution modules
 pub mod agent;
@@ -23,13 +23,15 @@ pub mod tools;
 pub mod transpiler;
 
 // Primary public API
-pub use runtime::runtime::{Runtime, RuntimeConfig};
-pub use runtime::{AgentContext, CapabilityContext, SnapshotContext, ToolContext, TraceContext, VmContext};
+pub use deterministic::{DeterministicClock, IoInterceptor, ReplayEngine};
 pub use ffi::value::JsValue;
-pub use tools::{ToolCall, ToolRegistry, ToolResult, default_tool_registry};
+pub use metrics::RuntimeMetrics;
+pub use modules::{BuiltinRegistry, ModuleGraph, ModuleResolver};
+pub use promise::{PromiseBridge, ResolutionQueue};
+pub use runtime::runtime::{Runtime, RuntimeConfig};
+pub use runtime::{
+    AgentContext, CapabilityContext, SnapshotContext, ToolContext, TraceContext, VmContext,
+};
 pub use scheduler::AgentScheduler;
 pub use snapshot::{LayeredSnapshot, Snapshot};
-pub use promise::{PromiseBridge, ResolutionQueue};
-pub use deterministic::{DeterministicClock, ReplayEngine, IoInterceptor};
-pub use modules::{ModuleGraph, ModuleResolver, BuiltinRegistry};
-pub use metrics::RuntimeMetrics;
+pub use tools::{default_tool_registry, ToolCall, ToolRegistry, ToolResult};

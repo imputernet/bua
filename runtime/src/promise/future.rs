@@ -45,7 +45,9 @@ impl JsPromiseFuture {
             waker: None,
         }));
         (
-            Self { state: state.clone() },
+            Self {
+                state: state.clone(),
+            },
             JsPromiseResolver { state },
         )
     }

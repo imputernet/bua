@@ -94,10 +94,7 @@ impl ExecutionTrace {
         self.events.push(TraceEvent {
             id,
             timestamp_us: now_us(),
-            execution_id: self
-                .execution_id
-                .clone()
-                .unwrap_or_else(ExecutionId::new),
+            execution_id: self.execution_id.clone().unwrap_or_default(),
             kind,
         });
         id

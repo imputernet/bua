@@ -16,9 +16,9 @@
 //   - Testable (assertions against recorded behavior)
 
 pub mod clock;
-pub mod replay;
 pub mod interceptor;
+pub mod replay;
 
 pub use clock::DeterministicClock;
-pub use replay::{ReplayEngine, ReplayResult, DivergenceError};
 pub use interceptor::IoInterceptor;
+pub use replay::{DivergenceError, ReplayEngine, ReplayResult};

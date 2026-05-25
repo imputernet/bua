@@ -10,11 +10,9 @@
 /// Architecture: Tokio is the outer executor. JSC is single-threaded per
 /// context. We run JSC on a dedicated `tokio::task::spawn_blocking` thread
 /// and communicate via channels.
-
 use bua_core::BuaResult;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, Instant};
 

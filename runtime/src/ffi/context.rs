@@ -11,19 +11,16 @@
 use bua_core::{BuaError, BuaResult};
 use std::sync::Arc;
 
-use super::value::{
-    ArrayHandle, FunctionHandle, HandleInner, JsException, JsValue,
-    ObjectHandle, PromiseHandle,
-};
+use super::value::{FunctionHandle, JsException, JsValue, ObjectHandle, PromiseHandle};
 
-pub type NativeFn = Arc<
-    dyn Fn(&JscContext, Vec<JsValue>) -> Result<JsValue, JsException> + 'static,
->;
+pub type NativeFn =
+    Arc<dyn Fn(&JscContext, Vec<JsValue>) -> Result<JsValue, JsException> + Send + Sync + 'static>;
 
 // ---------------------------------------------------------------------------
 // Internal native registration entry
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 struct NativeEntry {
     func: NativeFn,
     /// Canonical path (for debug / deregistration).
@@ -34,12 +31,13 @@ struct NativeEntry {
 // JscContext
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 pub struct JscContext {
     /// Raw *mut BuaContext from C side. 0 = stub mode.
     ctx_ptr: usize,
     /// Boxed entries kept alive — their raw pointers are passed as user_data
     /// to the C bridge's native callback registration.
-    native_entries: Vec<Box<NativeEntry>>,
+    native_entries: Vec<NativeEntry>,
     poisoned: bool,
 }
 
@@ -50,15 +48,25 @@ impl JscContext {
             use crate::jsc_sys;
             let ptr = unsafe { jsc_sys::bua_context_create(max_heap_bytes) };
             if (ptr as usize) == 0 {
-                return Err(BuaError::JsEngineInit("bua_context_create returned null".into()));
+                return Err(BuaError::JsEngineInit(
+                    "bua_context_create returned null".into(),
+                ));
             }
             tracing::debug!(max_heap_bytes, ptr = ptr as usize, "JscContext created");
-            return Ok(Self { ctx_ptr: ptr as usize, native_entries: Vec::new(), poisoned: false });
+            return Ok(Self {
+                ctx_ptr: ptr as usize,
+                native_entries: Vec::new(),
+                poisoned: false,
+            });
         }
         #[cfg(not(jsc_available))]
         {
             tracing::debug!(max_heap_bytes, "JscContext created (stub)");
-            Ok(Self { ctx_ptr: 0, native_entries: Vec::new(), poisoned: false })
+            Ok(Self {
+                ctx_ptr: 0,
+                native_entries: Vec::new(),
+                poisoned: false,
+            })
         }
     }
 
@@ -68,7 +76,11 @@ impl JscContext {
 
     pub fn eval(&self, source: &str, source_url: Option<&str>) -> Result<JsValue, JsException> {
         self.check_not_poisoned()?;
-        tracing::debug!(url = source_url.unwrap_or("<anon>"), bytes = source.len(), "eval");
+        tracing::debug!(
+            url = source_url.unwrap_or("<anon>"),
+            bytes = source.len(),
+            "eval"
+        );
 
         #[cfg(jsc_available)]
         {
@@ -76,7 +88,7 @@ impl JscContext {
             use std::{ffi::CString, ptr};
 
             let url_cstr = source_url.and_then(|u| CString::new(u).ok());
-            let url_ptr  = url_cstr.as_ref().map(|c| c.as_ptr()).unwrap_or(ptr::null());
+            let url_ptr = url_cstr.as_ref().map(|c| c.as_ptr()).unwrap_or(ptr::null());
             let mut ex_ptr: *mut std::ffi::c_void = ptr::null_mut();
 
             let result = unsafe {
@@ -90,16 +102,24 @@ impl JscContext {
             };
 
             if !(ex_ptr as usize == 0) {
-                let msg   = unsafe { read_cstr(jsc_sys::bua_exception_message(ex_ptr as *const _)) };
+                let msg = unsafe { read_cstr(jsc_sys::bua_exception_message(ex_ptr as *const _)) };
                 let stack = unsafe {
                     let s = jsc_sys::bua_exception_stack(ex_ptr as *const _);
-                    if s.is_null() { None } else { Some(read_cstr(s)) }
+                    if s.is_null() {
+                        None
+                    } else {
+                        Some(read_cstr(s))
+                    }
                 };
-                unsafe { jsc_sys::bua_exception_free(ex_ptr); }
+                unsafe {
+                    jsc_sys::bua_exception_free(ex_ptr);
+                }
                 return Err(JsException::new(msg).with_stack(stack.unwrap_or_default()));
             }
 
-            if (result as usize) == 0 { return Ok(JsValue::Undefined); }
+            if (result as usize) == 0 {
+                return Ok(JsValue::Undefined);
+            }
             return Ok(self.wrap_jsc_value(result as usize));
         }
         #[cfg(not(jsc_available))]
@@ -115,8 +135,7 @@ impl JscContext {
             use crate::jsc_sys::{self, read_cstr};
             use std::{ffi::CString, ptr};
 
-            let url_cstr = CString::new(module_url)
-                .map_err(|e| JsException::new(e.to_string()))?;
+            let url_cstr = CString::new(module_url).map_err(|e| JsException::new(e.to_string()))?;
             let mut ex_ptr: *mut std::ffi::c_void = ptr::null_mut();
 
             let result = unsafe {
@@ -131,10 +150,14 @@ impl JscContext {
 
             if !(ex_ptr as usize == 0) {
                 let msg = unsafe { read_cstr(jsc_sys::bua_exception_message(ex_ptr as *const _)) };
-                unsafe { jsc_sys::bua_exception_free(ex_ptr); }
+                unsafe {
+                    jsc_sys::bua_exception_free(ex_ptr);
+                }
                 return Err(JsException::new(msg));
             }
-            if (result as usize) == 0 { return Ok(JsValue::Undefined); }
+            if (result as usize) == 0 {
+                return Ok(JsValue::Undefined);
+            }
             return Ok(self.wrap_jsc_value(result as usize));
         }
         #[cfg(not(jsc_available))]
@@ -145,7 +168,9 @@ impl JscContext {
     /// MUST be called after every top-level eval and after resolving Promises.
     pub fn drain_microtasks(&self) {
         #[cfg(jsc_available)]
-        unsafe { crate::jsc_sys::bua_context_drain_microtasks(self.ctx_ptr as *mut _); }
+        unsafe {
+            crate::jsc_sys::bua_context_drain_microtasks(self.ctx_ptr as *mut _);
+        }
         tracing::trace!("drain_microtasks");
     }
 
@@ -154,7 +179,10 @@ impl JscContext {
     // -----------------------------------------------------------------------
 
     pub fn register_native(&mut self, path: &str, func: NativeFn) -> BuaResult<()> {
-        let entry = Box::new(NativeEntry { func, path: path.to_string() });
+        let entry = Box::new(NativeEntry {
+            func,
+            path: path.to_string(),
+        });
 
         #[cfg(jsc_available)]
         {
@@ -166,12 +194,7 @@ impl JscContext {
 
             let ok = unsafe {
                 with_cstr(path, |p| {
-                    jsc_sys::bua_set_native(
-                        self.ctx_ptr as *mut _,
-                        p,
-                        native_trampoline,
-                        entry_ptr,
-                    )
+                    jsc_sys::bua_set_native(self.ctx_ptr as *mut _, p, native_trampoline, entry_ptr)
                 })
             };
 
@@ -180,7 +203,7 @@ impl JscContext {
             }
         }
 
-        self.native_entries.push(entry);
+        self.native_entries.push(*entry);
         tracing::debug!(path, "native registered");
         Ok(())
     }
@@ -201,7 +224,7 @@ impl JscContext {
     pub fn call_function(
         &self,
         func: &FunctionHandle,
-        this: Option<&JsValue>,
+        _this: Option<&JsValue>,
         args: Vec<JsValue>,
     ) -> Result<JsValue, JsException> {
         self.check_not_poisoned()?;
@@ -240,22 +263,34 @@ impl JscContext {
                     func_ptr,
                     this_ptr,
                     arg_ptrs.len(),
-                    if arg_ptrs.is_empty() { ptr::null() } else { arg_ptrs.as_ptr() },
+                    if arg_ptrs.is_empty() {
+                        ptr::null()
+                    } else {
+                        arg_ptrs.as_ptr()
+                    },
                     &mut ex_ptr,
                 )
             };
 
             if !(ex_ptr as usize == 0) {
-                let msg   = unsafe { read_cstr(jsc_sys::bua_exception_message(ex_ptr as *const _)) };
+                let msg = unsafe { read_cstr(jsc_sys::bua_exception_message(ex_ptr as *const _)) };
                 let stack = unsafe {
                     let s = jsc_sys::bua_exception_stack(ex_ptr as *const _);
-                    if s.is_null() { None } else { Some(read_cstr(s)) }
+                    if s.is_null() {
+                        None
+                    } else {
+                        Some(read_cstr(s))
+                    }
                 };
-                unsafe { jsc_sys::bua_exception_free(ex_ptr); }
+                unsafe {
+                    jsc_sys::bua_exception_free(ex_ptr);
+                }
                 return Err(JsException::new(msg).with_stack(stack.unwrap_or_default()));
             }
 
-            if (result as usize) == 0 { return Ok(JsValue::Undefined); }
+            if (result as usize) == 0 {
+                return Ok(JsValue::Undefined);
+            }
             return Ok(self.wrap_jsc_value(result as usize));
         }
         #[cfg(not(jsc_available))]
@@ -282,8 +317,8 @@ impl JscContext {
 
             // JSObjectMakeDeferredPromise(ctx, &resolve, &reject, &exception)
             let mut resolve_ptr: *mut std::ffi::c_void = ptr::null_mut();
-            let mut reject_ptr:  *mut std::ffi::c_void = ptr::null_mut();
-            let mut ex_ptr:      *mut std::ffi::c_void = ptr::null_mut();
+            let mut reject_ptr: *mut std::ffi::c_void = ptr::null_mut();
+            let mut ex_ptr: *mut std::ffi::c_void = ptr::null_mut();
 
             let promise_ptr = unsafe {
                 jsc_sys::jsc_make_deferred_promise(
@@ -296,15 +331,17 @@ impl JscContext {
 
             if !(ex_ptr as usize == 0) {
                 let msg = unsafe { read_cstr(jsc_sys::bua_exception_message(ex_ptr as *const _)) };
-                unsafe { jsc_sys::bua_exception_free(ex_ptr); }
+                unsafe {
+                    jsc_sys::bua_exception_free(ex_ptr);
+                }
                 return Err(JsException::new(msg));
             }
 
             let ctx = self.ctx_ptr;
             let handle = PromiseHandle::new(
                 FunctionHandle::new(resolve_ptr as usize, ctx),
-                FunctionHandle::new(reject_ptr  as usize, ctx),
-                ObjectHandle::new(promise_ptr   as usize, ctx),
+                FunctionHandle::new(reject_ptr as usize, ctx),
+                ObjectHandle::new(promise_ptr as usize, ctx),
             );
             let promise_val = handle.promise_value();
             return Ok((handle, promise_val));
@@ -366,10 +403,14 @@ impl JscContext {
                 )
             };
             if !(ex_ptr as usize == 0) {
-                unsafe { jsc_sys::bua_exception_free(ex_ptr); }
+                unsafe {
+                    jsc_sys::bua_exception_free(ex_ptr);
+                }
                 return Err(JsException::new(format!("JSON parse error")));
             }
-            if (result as usize) == 0 { return Ok(JsValue::Null); }
+            if (result as usize) == 0 {
+                return Ok(JsValue::Null);
+            }
             return Ok(self.wrap_jsc_value(result as usize));
         }
 
@@ -387,14 +428,16 @@ impl JscContext {
         {
             use crate::jsc_sys;
             let mut size: usize = 0;
-            let ptr = unsafe {
-                jsc_sys::bua_snapshot_create(self.ctx_ptr as *mut _, &mut size)
-            };
+            let ptr = unsafe { jsc_sys::bua_snapshot_create(self.ctx_ptr as *mut _, &mut size) };
             if (ptr as usize) == 0 || size == 0 {
-                return Err(BuaError::SnapshotSerialize("bua_snapshot_create failed".into()));
+                return Err(BuaError::SnapshotSerialize(
+                    "bua_snapshot_create failed".into(),
+                ));
             }
             let bytes = unsafe { std::slice::from_raw_parts(ptr, size).to_vec() };
-            unsafe { jsc_sys::bua_snapshot_free(ptr); }
+            unsafe {
+                jsc_sys::bua_snapshot_free(ptr);
+            }
             return Ok(bytes);
         }
         tracing::info!("snapshot_heap (stub)");
@@ -409,7 +452,9 @@ impl JscContext {
                 jsc_sys::bua_snapshot_restore(self.ctx_ptr as *mut _, data.as_ptr(), data.len())
             };
             if !ok {
-                return Err(BuaError::SnapshotRestore("bua_snapshot_restore failed".into()));
+                return Err(BuaError::SnapshotRestore(
+                    "bua_snapshot_restore failed".into(),
+                ));
             }
             return Ok(());
         }
@@ -421,7 +466,9 @@ impl JscContext {
     // Lifecycle
     // -----------------------------------------------------------------------
 
-    pub fn poison(&mut self) { self.poisoned = true; }
+    pub fn poison(&mut self) {
+        self.poisoned = true;
+    }
 
     fn check_not_poisoned(&self) -> Result<(), JsException> {
         if self.poisoned {
@@ -439,25 +486,30 @@ impl JscContext {
     fn wrap_jsc_value(&self, ptr: usize) -> JsValue {
         use crate::jsc_sys::{self, cstr_to_string};
 
-        let type_id = unsafe {
-            jsc_sys::bua_value_type(self.ctx_ptr as *mut _, ptr as *const _)
-        };
+        let type_id = unsafe { jsc_sys::bua_value_type(self.ctx_ptr as *mut _, ptr as *const _) };
 
         match type_id {
             0 => JsValue::Undefined,
             1 => JsValue::Null,
             2 => {
-                let b = unsafe { jsc_sys::bua_value_to_bool(self.ctx_ptr as *mut _, ptr as *const _) };
+                let b =
+                    unsafe { jsc_sys::bua_value_to_bool(self.ctx_ptr as *mut _, ptr as *const _) };
                 JsValue::Bool(b)
             }
             3 => {
-                let n = unsafe { jsc_sys::bua_value_to_number(self.ctx_ptr as *mut _, ptr as *const _) };
+                let n = unsafe {
+                    jsc_sys::bua_value_to_number(self.ctx_ptr as *mut _, ptr as *const _)
+                };
                 JsValue::Number(n)
             }
             4 => {
                 let mut len: usize = 0;
                 let s_ptr = unsafe {
-                    jsc_sys::bua_value_to_string_utf8(self.ctx_ptr as *mut _, ptr as *const _, &mut len)
+                    jsc_sys::bua_value_to_string_utf8(
+                        self.ctx_ptr as *mut _,
+                        ptr as *const _,
+                        &mut len,
+                    )
                 };
                 JsValue::String(unsafe { cstr_to_string(s_ptr, len) })
             }
@@ -492,7 +544,9 @@ impl Drop for JscContext {
     fn drop(&mut self) {
         #[cfg(jsc_available)]
         if self.ctx_ptr != 0 {
-            unsafe { crate::jsc_sys::bua_context_destroy(self.ctx_ptr as *mut _); }
+            unsafe {
+                crate::jsc_sys::bua_context_destroy(self.ctx_ptr as *mut _);
+            }
             tracing::debug!("JscContext destroyed");
         }
     }
@@ -510,12 +564,12 @@ impl Drop for JscContext {
 
 #[cfg(jsc_available)]
 unsafe extern "C" fn native_trampoline(
-    ctx_ptr:  *mut std::ffi::c_void,
-    _this:    *mut std::ffi::c_void,
+    ctx_ptr: *mut std::ffi::c_void,
+    _this: *mut std::ffi::c_void,
     raw_args: *mut *mut std::ffi::c_void,
-    argc:     usize,
+    argc: usize,
     user_data: *mut std::ffi::c_void,
-    out_ex:   *mut *mut std::ffi::c_void,
+    out_ex: *mut *mut std::ffi::c_void,
 ) -> *mut std::ffi::c_void {
     // SAFETY: user_data is &NativeEntry kept alive in native_entries vec.
     let entry = &*(user_data as *const NativeEntry);
@@ -544,20 +598,23 @@ unsafe extern "C" fn native_trampoline(
     // Forget temp_ctx so Drop doesn't call bua_context_destroy on the borrowed ptr.
     std::mem::forget(temp_ctx);
 
-    match (entry.func)(&JscContext {
-        ctx_ptr: ctx_ptr as usize,
-        native_entries: Vec::new(),
-        poisoned: false,
-    }, args) {
+    match (entry.func)(
+        &JscContext {
+            ctx_ptr: ctx_ptr as usize,
+            native_entries: Vec::new(),
+            poisoned: false,
+        },
+        args,
+    ) {
         Ok(val) => {
             // Convert result back to a raw JSC pointer.
             // For now: serialise via JSON for complex values.
             use crate::jsc_sys;
             match val {
-                JsValue::Undefined    => jsc_sys::bua_value_undefined(ctx_ptr),
-                JsValue::Null         => jsc_sys::bua_value_null(ctx_ptr),
-                JsValue::Bool(b)      => jsc_sys::bua_value_bool(ctx_ptr, b),
-                JsValue::Number(n)    => jsc_sys::bua_value_number(ctx_ptr, n),
+                JsValue::Undefined => jsc_sys::bua_value_undefined(ctx_ptr),
+                JsValue::Null => jsc_sys::bua_value_null(ctx_ptr),
+                JsValue::Bool(b) => jsc_sys::bua_value_bool(ctx_ptr, b),
+                JsValue::Number(n) => jsc_sys::bua_value_number(ctx_ptr, n),
                 JsValue::String(ref s) => {
                     jsc_sys::bua_value_string(ctx_ptr, s.as_ptr() as *const _, s.len())
                 }
@@ -571,7 +628,9 @@ unsafe extern "C" fn native_trampoline(
                         json.len(),
                         &mut ex2,
                     );
-                    if !(ex2 as usize == 0) { jsc_sys::bua_exception_free(ex2); }
+                    if !(ex2 as usize == 0) {
+                        jsc_sys::bua_exception_free(ex2);
+                    }
                     r
                 }
             }
@@ -580,9 +639,8 @@ unsafe extern "C" fn native_trampoline(
             // Set the out exception as a JS string
             use crate::jsc_sys;
             let msg = format!("{}: {}", ex.name, ex.message);
-            *out_ex = jsc_sys::bua_value_string(
-                ctx_ptr, msg.as_ptr() as *const _, msg.len()
-            ) as *mut _;
+            *out_ex =
+                jsc_sys::bua_value_string(ctx_ptr, msg.as_ptr() as *const _, msg.len()) as *mut _;
             std::ptr::null_mut()
         }
     }

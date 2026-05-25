@@ -53,22 +53,22 @@ pub type JSClassRef = *mut OpaqueJSClass;
 // JSC value types
 // ---------------------------------------------------------------------------
 
-pub const kJSTypeUndefined: c_int = 0;
-pub const kJSTypeNull: c_int = 1;
-pub const kJSTypeBoolean: c_int = 2;
-pub const kJSTypeNumber: c_int = 3;
-pub const kJSTypeString: c_int = 4;
-pub const kJSTypeObject: c_int = 5;
-pub const kJSTypeSymbol: c_int = 6;
+pub const K_JSTYPE_UNDEFINED: c_int = 0;
+pub const K_JSTYPE_NULL: c_int = 1;
+pub const K_JSTYPE_BOOLEAN: c_int = 2;
+pub const K_JSTYPE_NUMBER: c_int = 3;
+pub const K_JSTYPE_STRING: c_int = 4;
+pub const K_JSTYPE_OBJECT: c_int = 5;
+pub const K_JSTYPE_SYMBOL: c_int = 6;
 
 // ---------------------------------------------------------------------------
 // JSC property attributes
 // ---------------------------------------------------------------------------
 
-pub const kJSPropertyAttributeNone: c_int = 0;
-pub const kJSPropertyAttributeReadOnly: c_int = 2;
-pub const kJSPropertyAttributeDontEnum: c_int = 4;
-pub const kJSPropertyAttributeDontDelete: c_int = 8;
+pub const K_JSPROPERTY_ATTRIBUTE_NONE: c_int = 0;
+pub const K_JSPROPERTY_ATTRIBUTE_READ_ONLY: c_int = 2;
+pub const K_JSPROPERTY_ATTRIBUTE_DONT_ENUM: c_int = 4;
+pub const K_JSPROPERTY_ATTRIBUTE_DONT_DELETE: c_int = 8;
 
 // ---------------------------------------------------------------------------
 // Native callback type
@@ -231,9 +231,7 @@ pub unsafe fn read_cstr(ptr: *const c_char) -> String {
     if ptr.is_null() {
         return String::new();
     }
-    std::ffi::CStr::from_ptr(ptr)
-        .to_string_lossy()
-        .into_owned()
+    std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned()
 }
 
 // ---------------------------------------------------------------------------
@@ -285,9 +283,9 @@ extern "C" {
     /// exception: written on throw; caller must check and free
     /// returns:   JSValueRef result (null on exception)
     pub fn JSObjectCallAsFunction(
-        ctx:       *const c_void,
-        object:    *mut c_void,
-        this_obj:  *mut c_void,
+        ctx: *const c_void,
+        object: *mut c_void,
+        this_obj: *mut c_void,
         arg_count: usize,
         arguments: *const *const c_void,
         exception: *mut *const c_void,
@@ -301,9 +299,9 @@ extern "C" {
     /// exception: written on failure
     /// returns:  the Promise JSObjectRef
     pub fn JSObjectMakeDeferredPromise(
-        ctx:       *mut c_void,
-        resolve:   *mut *mut c_void,
-        reject:    *mut *mut c_void,
+        ctx: *mut c_void,
+        resolve: *mut *mut c_void,
+        reject: *mut *mut c_void,
         exception: *mut *const c_void,
     ) -> *mut c_void;
 }
@@ -315,9 +313,9 @@ extern "C" {
 /// All pointers must be valid JSC objects on the current JS thread.
 #[inline]
 pub unsafe fn jsc_call_as_function(
-    ctx:       *mut c_void,
-    func:      *mut c_void,
-    this_obj:  *mut c_void,
+    ctx: *mut c_void,
+    func: *mut c_void,
+    this_obj: *mut c_void,
     arg_count: usize,
     arguments: *const *const c_void,
     exception: *mut *mut c_void,
@@ -338,15 +336,10 @@ pub unsafe fn jsc_call_as_function(
 /// ctx must be a valid JSContextRef on the current JS thread.
 #[inline]
 pub unsafe fn jsc_make_deferred_promise(
-    ctx:       *mut c_void,
-    resolve:   *mut *mut c_void,
-    reject:    *mut *mut c_void,
+    ctx: *mut c_void,
+    resolve: *mut *mut c_void,
+    reject: *mut *mut c_void,
     exception: *mut *mut c_void,
 ) -> *mut c_void {
-    JSObjectMakeDeferredPromise(
-        ctx,
-        resolve,
-        reject,
-        exception as *mut *const _,
-    )
+    JSObjectMakeDeferredPromise(ctx, resolve, reject, exception as *mut *const _)
 }

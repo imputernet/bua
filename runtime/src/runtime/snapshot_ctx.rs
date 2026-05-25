@@ -16,12 +16,12 @@
 
 use bua_core::{BuaResult, ExecutionId};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::snapshot::Snapshot;
 use super::capability_ctx::CapabilityContext;
 use super::trace_ctx::TraceContext;
+use crate::snapshot::Snapshot;
 
 /// Configuration for snapshot behavior.
 #[derive(Debug, Clone)]
@@ -69,7 +69,9 @@ impl SnapshotContext {
         trace: &TraceContext,
         heap_bytes: Vec<u8>,
     ) -> BuaResult<SnapshotRef> {
-        let count = self.snapshot_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let count = self
+            .snapshot_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let filename = format!(
             "{}-snap-{count:04}.bsnap",
             self.execution_id.as_uuid().as_simple()
@@ -162,7 +164,7 @@ impl SnapshotContext {
     pub fn should_auto_checkpoint(&self, tool_call_count: u64) -> bool {
         self.config
             .auto_snapshot_every
-            .map(|n| n > 0 && tool_call_count % n == 0)
+            .map(|n| n > 0 && tool_call_count.is_multiple_of(n))
             .unwrap_or(false)
     }
 }
@@ -213,7 +215,10 @@ mod tests {
     fn auto_checkpoint_trigger() {
         let ctx = SnapshotContext::new(
             ExecutionId::new(),
-            SnapshotConfig { auto_snapshot_every: Some(5), ..Default::default() },
+            SnapshotConfig {
+                auto_snapshot_every: Some(5),
+                ..Default::default()
+            },
         );
         assert!(!ctx.should_auto_checkpoint(4));
         assert!(ctx.should_auto_checkpoint(5));

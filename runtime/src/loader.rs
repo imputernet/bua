@@ -3,13 +3,12 @@
 /// Resolves, loads, transpiles, and caches ES modules.
 /// Resolution order: 1) exact path, 2) .ts/.js extension probing,
 /// 3) node_modules (minimal, for stdlib-like packages), 4) error.
-
 use bua_core::{BuaError, BuaResult};
 use dashmap::DashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::transpiler::{Transpiler, TranspileOutput};
+use crate::transpiler::Transpiler;
 
 /// A loaded, ready-to-evaluate module.
 #[derive(Debug, Clone)]
@@ -55,9 +54,7 @@ impl ModuleLoader {
 
         // Relative path
         if specifier.starts_with("./") || specifier.starts_with("../") {
-            let base = referrer
-                .and_then(|p| p.parent())
-                .unwrap_or(&self.base_dir);
+            let base = referrer.and_then(|p| p.parent()).unwrap_or(&self.base_dir);
             let candidate = base.join(specifier);
             return probe_extensions(&candidate);
         }
@@ -89,12 +86,13 @@ impl ModuleLoader {
         }
 
         // Load from disk
-        let raw = tokio::fs::read_to_string(&path).await.map_err(|e| {
-            BuaError::ModuleLoadFailed {
-                specifier: specifier.to_string(),
-                reason: e.to_string(),
-            }
-        })?;
+        let raw =
+            tokio::fs::read_to_string(&path)
+                .await
+                .map_err(|e| BuaError::ModuleLoadFailed {
+                    specifier: specifier.to_string(),
+                    reason: e.to_string(),
+                })?;
 
         let (source, was_transpiled) = if Transpiler::needs_transpile(&path) {
             let out = self.transpiler.transpile(&raw, &path.to_string_lossy())?;
@@ -186,7 +184,7 @@ fn probe_extensions(base: &Path) -> BuaResult<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+
     use tempfile::TempDir;
 
     #[tokio::test]

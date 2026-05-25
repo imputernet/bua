@@ -13,15 +13,25 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 fn main() {
+    println!("cargo::rustc-check-cfg=cfg(jsc_available)");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let jsc_dir = manifest_dir.parent().unwrap().join("jsc");
 
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed={}", jsc_dir.join("src/bua_jsc.cpp").display());
-    println!("cargo:rerun-if-changed={}", jsc_dir.join("include/bua_jsc.h").display());
-    println!("cargo:rerun-if-changed={}", jsc_dir.join("bindings/bua_jsc_sys.rs").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        jsc_dir.join("src/bua_jsc.cpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        jsc_dir.join("include/bua_jsc.h").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        jsc_dir.join("bindings/bua_jsc_sys.rs").display()
+    );
 
     let jsc_available = detect_jsc(&target_os, &jsc_dir);
 
@@ -38,7 +48,7 @@ fn main() {
     }
 }
 
-fn detect_jsc(os: &str, jsc_dir: &Path) -> bool {
+fn detect_jsc(os: &str, _jsc_dir: &Path) -> bool {
     // 1. Explicit override via env var
     if let Ok(path) = env::var("BUA_JSC_PATH") {
         let lib_path = Path::new(&path);
@@ -66,9 +76,7 @@ fn detect_jsc(os: &str, jsc_dir: &Path) -> bool {
 
     // 3. Linux: pkg-config for javascriptcoregtk
     if os == "linux" {
-        if pkg_config_check("javascriptcoregtk-4.1")
-            || pkg_config_check("javascriptcoregtk-4.0")
-        {
+        if pkg_config_check("javascriptcoregtk-4.1") || pkg_config_check("javascriptcoregtk-4.0") {
             return true;
         }
         // Check common paths
@@ -105,7 +113,8 @@ fn compile_jsc_bridge(jsc_dir: &Path, os: &str, _out_dir: &Path) {
         "macos" | "ios" => {
             // JavaScriptCore.framework header path
             if let Some(sdk) = get_macos_sdk_path() {
-                let jsc_headers = sdk.join("System/Library/Frameworks/JavaScriptCore.framework/Headers");
+                let jsc_headers =
+                    sdk.join("System/Library/Frameworks/JavaScriptCore.framework/Headers");
                 if jsc_headers.exists() {
                     build.include(&jsc_headers);
                 }

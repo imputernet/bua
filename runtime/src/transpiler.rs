@@ -2,10 +2,8 @@
 ///
 /// Strips TypeScript types, preserves ESM syntax, handles JSX (tsx).
 /// Intentionally zero config — Bua picks sensible defaults.
-
 use bua_core::{BuaError, BuaResult};
 use std::path::Path;
-use std::sync::OnceLock;
 
 /// Target JS version emitted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,11 +63,7 @@ impl Transpiler {
     /// In the real build this calls into swc_core. This implementation
     /// performs a best-effort regex-free strip of TypeScript syntax
     /// sufficient for the stub runtime (no SWC dependency needed yet).
-    pub fn transpile(
-        &self,
-        source: &str,
-        filename: &str,
-    ) -> BuaResult<TranspileOutput> {
+    pub fn transpile(&self, source: &str, filename: &str) -> BuaResult<TranspileOutput> {
         let start = std::time::Instant::now();
 
         // Real build uses swc_core:

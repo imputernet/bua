@@ -17,23 +17,13 @@ pub enum AgentLifecycle {
     /// Created but not yet started.
     Pending,
     /// JS engine running.
-    Running {
-        started_at_us: u64,
-    },
+    Running { started_at_us: u64 },
     /// Successfully completed.
-    Completed {
-        exit_code: i32,
-        duration_us: u64,
-    },
+    Completed { exit_code: i32, duration_us: u64 },
     /// Failed with an error.
-    Failed {
-        error: String,
-        duration_us: u64,
-    },
+    Failed { error: String, duration_us: u64 },
     /// Killed by timeout.
-    TimedOut {
-        timeout_ms: u64,
-    },
+    TimedOut { timeout_ms: u64 },
     /// Cancelled by parent or scheduler.
     Cancelled,
 }
@@ -42,10 +32,7 @@ impl AgentLifecycle {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            Self::Completed { .. }
-                | Self::Failed { .. }
-                | Self::TimedOut { .. }
-                | Self::Cancelled
+            Self::Completed { .. } | Self::Failed { .. } | Self::TimedOut { .. } | Self::Cancelled
         )
     }
 
@@ -87,11 +74,7 @@ struct AgentContextInner {
 }
 
 impl AgentContext {
-    pub fn new(
-        entrypoint: PathBuf,
-        parent_id: Option<AgentId>,
-        timeout: Option<Duration>,
-    ) -> Self {
+    pub fn new(entrypoint: PathBuf, parent_id: Option<AgentId>, timeout: Option<Duration>) -> Self {
         Self {
             inner: Arc::new(RwLock::new(AgentContextInner {
                 id: AgentId::new(),
@@ -136,7 +119,9 @@ impl AgentContext {
             "can only start from Pending, was {:?}",
             inner.lifecycle
         );
-        inner.lifecycle = AgentLifecycle::Running { started_at_us: now_us() };
+        inner.lifecycle = AgentLifecycle::Running {
+            started_at_us: now_us(),
+        };
         inner.start_instant = Some(Instant::now());
         tracing::debug!(agent_id = %inner.id, "agent → Running");
     }
@@ -147,7 +132,10 @@ impl AgentContext {
             .start_instant
             .map(|t| t.elapsed().as_micros() as u64)
             .unwrap_or(0);
-        inner.lifecycle = AgentLifecycle::Completed { exit_code, duration_us };
+        inner.lifecycle = AgentLifecycle::Completed {
+            exit_code,
+            duration_us,
+        };
         tracing::debug!(agent_id = %inner.id, exit_code, duration_us, "agent → Completed");
     }
 

@@ -1,0 +1,35 @@
+#!/usr/bin/env node
+// npm/pkg/bin/bua
+//
+// Thin Node.js shim that locates and exec's the real Bua binary.
+// This file is the `bin.bua` entry in package.json.
+
+'use strict';
+
+const { execFileSync } = require('child_process');
+const path = require('path');
+const fs   = require('fs');
+const os   = require('os');
+
+const binName = os.platform() === 'win32' ? 'bua.exe' : 'bua';
+const binPath = path.join(__dirname, binName);
+
+if (!fs.existsSync(binPath)) {
+  console.error(
+    'Bua binary not found. Run `npm install bua.js` to trigger postinstall,\n' +
+    'or build from source: https://github.com/imputernet/bua'
+  );
+  process.exit(1);
+}
+
+try {
+  execFileSync(binPath, process.argv.slice(2), {
+    stdio: 'inherit',
+    env: process.env,
+  });
+} catch (err) {
+  if (err.status != null) {
+    process.exit(err.status);
+  }
+  throw err;
+}

@@ -1,0 +1,47 @@
+{
+  "name": "bua.js",
+  "version": "0.1.0",
+  "description": "AI-native deterministic JavaScript runtime for autonomous agents",
+  "keywords": [
+    "javascript",
+    "runtime",
+    "ai",
+    "agents",
+    "deterministic",
+    "typescript",
+    "autonomous",
+    "capability-security"
+  ],
+  "homepage": "https://github.com/imputernet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/imputernet/bua.git"
+  },
+  "bugs": {
+    "url": "https://github.com/imputernet/bua/issues"
+  },
+  "license": "MIT",
+  "author": "imputer",
+  "bin": {
+    "bua": "./bin/bua"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "bua.js-darwin-x64":   "0.1.0",
+    "bua.js-darwin-arm64": "0.1.0",
+    "bua.js-linux-x64":    "0.1.0",
+    "bua.js-linux-arm64":  "0.1.0",
+    "bua.js-win32-x64":    "0.1.0"
+  }
+}

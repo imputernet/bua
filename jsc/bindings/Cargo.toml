@@ -1,0 +1,15 @@
+[package]
+name = "bua-jsc-sys"
+version.workspace = true
+edition.workspace = true
+description = "Raw FFI bindings to the Bua JSC C bridge"
+
+# This crate has no Rust sources other than the bindings file.
+# The file is included directly from bua_jsc_sys.rs in the bindings dir.
+
+[lib]
+name = "bua_jsc_sys"
+path = "bua_jsc_sys.rs"
+
+# No dependencies — pure FFI declarations
+[dependencies]

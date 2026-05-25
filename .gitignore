@@ -1,0 +1,41 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Build artifacts
+*.a
+*.so
+*.dylib
+*.dll
+libbua_jsc.a
+libbua_platform.a
+
+# Snapshots (user-generated)
+*.bsnap
+.bua/
+
+# Node / npm
+node_modules/
+npm/platform-pkgs/
+npm/binaries/
+*.tgz
+
+# Zig
+.zig-cache/
+zig-out/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Test outputs
+/output/
+/tmp-test-*/
+
+# Env files
+.env
+.env.local

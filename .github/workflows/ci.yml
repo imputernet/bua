@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Fast checks — format, lint, compile
+  # ---------------------------------------------------------------------------
+  check:
+    name: Check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-cargo
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy (stub mode — no JSC required)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        env:
+          # Build without JSC to test stub path on all platforms
+          BUA_SKIP_JSC: "1"
+
+      - name: Build (stub mode)
+        run: cargo build --all
+        env:
+          BUA_SKIP_JSC: "1"
+
+  # ---------------------------------------------------------------------------
+  # Tests — stub mode (no JSC required, runs everywhere)
+  # ---------------------------------------------------------------------------
+  test-stub:
+    name: Test stub mode (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run tests (stub mode)
+        run: cargo test --all
+        env:
+          BUA_SKIP_JSC: "1"
+          BUA_LOG: "debug"
+
+  # ---------------------------------------------------------------------------
+  # Tests — real JSC (macOS only, JSC ships with the SDK)
+  # ---------------------------------------------------------------------------
+  test-jsc:
+    name: Test with real JSC (macOS)
+    runs-on: macos-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-jsc-cargo
+
+      - name: Verify JSC available
+        run: |
+          xcrun --show-sdk-path
+          ls $(xcrun --show-sdk-path)/System/Library/Frameworks/JavaScriptCore.framework/Headers/ | head -5
+
+      - name: Build with real JSC
+        run: cargo build --all --release
+
+      - name: Run tests with real JSC
+        run: cargo test --all --release
+        env:
+          BUA_LOG: "info"
+
+      - name: Run integration tests
+        run: |
+          ./target/release/bua run examples/hello_agent.ts --allow-fs=./examples 2>&1 | head -20
+          ./target/release/bua info
+
+  # ---------------------------------------------------------------------------
+  # Security audit
+  # ---------------------------------------------------------------------------
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit dependencies
+        run: cargo audit
+
+  # ---------------------------------------------------------------------------
+  # Benchmarks (on push to main only)
+  # ---------------------------------------------------------------------------
+  bench:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run benchmarks
+        run: cargo bench --package bua-runtime 2>&1 | tee bench-output.txt
+        env:
+          BUA_SKIP_JSC: "1"
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-results
+          path: bench-output.txt

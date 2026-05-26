@@ -18,13 +18,14 @@ impl fmt::Debug for HandleInner {
 
 impl Drop for HandleInner {
     fn drop(&mut self) {
-        if self.ptr == 0 || self.ctx_ptr == 0 {
-            return;
-        }
         #[cfg(jsc_available)]
-        unsafe {
-            let val = self.ptr as *mut std::ffi::c_void;
-            crate::jsc_sys::bua_value_free(val);
+        {
+            if self.ptr != 0 && self.ctx_ptr != 0 {
+                unsafe {
+                    let val = self.ptr as *mut std::ffi::c_void;
+                    crate::jsc_sys::bua_value_free(val);
+                }
+            }
         }
     }
 }

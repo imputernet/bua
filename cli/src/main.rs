@@ -32,7 +32,7 @@ struct Cli {
     #[command(subcommand)]
     command: Command,
 
-    #[arg(long, global = true, default_value = "info")]
+    #[arg(long, global = true, default_value = "info", env = "BUA_LOG")]
     log: String,
 
     #[arg(long, global = true, help = "Emit structured JSON logs")]

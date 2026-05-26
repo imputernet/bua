@@ -37,7 +37,8 @@ pub struct JscContext {
     ctx_ptr: usize,
     /// Boxed entries kept alive — their raw pointers are passed as user_data
     /// to the C bridge's native callback registration.
-    native_entries: Vec<NativeEntry>,
+    #[allow(clippy::vec_box)]
+    native_entries: Vec<Box<NativeEntry>>,
     poisoned: bool,
 }
 
@@ -189,7 +190,6 @@ impl JscContext {
             use crate::jsc_sys::{self, with_cstr};
 
             // SAFETY: entry_ptr stays valid because we store the box in native_entries below.
-            // The pointer is erased from Box::as_ref before the push so borrow checker is happy.
             let entry_ptr = entry.as_ref() as *const NativeEntry as *mut std::ffi::c_void;
 
             let ok = unsafe {
@@ -203,7 +203,7 @@ impl JscContext {
             }
         }
 
-        self.native_entries.push(*entry);
+        self.native_entries.push(entry);
         tracing::debug!(path, "native registered");
         Ok(())
     }
@@ -248,7 +248,7 @@ impl JscContext {
                 .collect();
 
             // `this` object — null means JS `undefined` this (global / strict mode)
-            let this_ptr = this
+            let this_ptr = _this
                 .and_then(|v| v.raw_ptr())
                 .map(|p| p as *mut std::ffi::c_void)
                 .unwrap_or(ptr::null_mut());
@@ -441,7 +441,7 @@ impl JscContext {
             return Ok(bytes);
         }
         tracing::info!("snapshot_heap (stub)");
-        Ok(vec![0xB, 0xA, 0xA, 0x2]) // v2 magic
+        Ok(vec![0x0B, 0x0A, 0x0A, 0x02]) // v2 magic
     }
 
     pub fn restore_heap(&mut self, data: &[u8]) -> BuaResult<()> {
@@ -489,20 +489,20 @@ impl JscContext {
         let type_id = unsafe { jsc_sys::bua_value_type(self.ctx_ptr as *mut _, ptr as *const _) };
 
         match type_id {
-            0 => JsValue::Undefined,
-            1 => JsValue::Null,
-            2 => {
+            jsc_sys::K_JSTYPE_UNDEFINED => JsValue::Undefined,
+            jsc_sys::K_JSTYPE_NULL => JsValue::Null,
+            jsc_sys::K_JSTYPE_BOOLEAN => {
                 let b =
                     unsafe { jsc_sys::bua_value_to_bool(self.ctx_ptr as *mut _, ptr as *const _) };
                 JsValue::Bool(b)
             }
-            3 => {
+            jsc_sys::K_JSTYPE_NUMBER => {
                 let n = unsafe {
                     jsc_sys::bua_value_to_number(self.ctx_ptr as *mut _, ptr as *const _)
                 };
                 JsValue::Number(n)
             }
-            4 => {
+            jsc_sys::K_JSTYPE_STRING => {
                 let mut len: usize = 0;
                 let s_ptr = unsafe {
                     jsc_sys::bua_value_to_string_utf8(
@@ -513,7 +513,7 @@ impl JscContext {
                 };
                 JsValue::String(unsafe { cstr_to_string(s_ptr, len) })
             }
-            5 => {
+            jsc_sys::K_JSTYPE_OBJECT => {
                 // Object — try JSON first for plain data objects, else return handle
                 let mut len: usize = 0;
                 let json_ptr = unsafe {

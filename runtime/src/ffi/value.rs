@@ -18,17 +18,20 @@ impl fmt::Debug for HandleInner {
 
 impl Drop for HandleInner {
     fn drop(&mut self) {
-        if self.ptr == 0 || self.ctx_ptr == 0 {}
         #[cfg(jsc_available)]
-        unsafe {
-            let ctx = self.ctx_ptr as *mut std::ffi::c_void;
-            let val = self.ptr as *const std::ffi::c_void;
-            crate::jsc_sys::jsc_value_unprotect(ctx, val);
+        {
+            if self.ptr != 0 && self.ctx_ptr != 0 {
+                unsafe {
+                    let val = self.ptr as *mut std::ffi::c_void;
+                    crate::jsc_sys::bua_value_free(val);
+                }
+            }
         }
     }
 }
 
 impl HandleInner {
+    #[allow(dead_code)]
     fn stub() -> Arc<Self> {
         Arc::new(Self { ptr: 0, ctx_ptr: 0 })
     }
@@ -37,12 +40,7 @@ impl HandleInner {
         if ptr == 0 || ctx_ptr == 0 {
             return Self::stub();
         }
-        #[cfg(jsc_available)]
-        unsafe {
-            let ctx = ctx_ptr as *mut std::ffi::c_void;
-            let val = ptr as *const std::ffi::c_void;
-            crate::jsc_sys::jsc_value_protect(ctx, val);
-        }
+        // Note: bridge functions (eval, call_function) return already-protected values.
         Arc::new(Self { ptr, ctx_ptr })
     }
 }
@@ -57,6 +55,7 @@ pub struct FunctionHandle(Arc<HandleInner>);
 macro_rules! impl_handle {
     ($T:ty) => {
         impl $T {
+            #[allow(dead_code)]
             pub(crate) fn stub() -> Self {
                 Self(HandleInner::stub())
             }
@@ -309,6 +308,7 @@ pub struct PromiseHandle {
 }
 
 impl PromiseHandle {
+    #[allow(dead_code)]
     pub(crate) fn stub() -> Self {
         Self {
             resolve: FunctionHandle::stub(),

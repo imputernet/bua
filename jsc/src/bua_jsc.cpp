@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <memory>
 #include <functional>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Internal structures
@@ -53,9 +54,10 @@ static BuaException* make_exception(JSContextRef ctx, JSValueRef ex_val) {
         JSObjectRef obj = JSValueToObject(ctx, ex_obj, nullptr);
         JSValueRef  msg = JSObjectGetProperty(ctx, obj, msg_key, nullptr);
         JSStringRef s   = JSValueToStringCopy(ctx, msg, nullptr);
-        size_t      len = JSStringGetMaximumUTF8CStringSize(s);
-        ex->message.resize(len);
-        JSStringGetUTF8CString(s, &ex->message[0], len);
+        size_t      max_len = JSStringGetMaximumUTF8CStringSize(s);
+        ex->message.resize(max_len);
+        size_t actual_len = JSStringGetUTF8CString(s, &ex->message[0], max_len);
+        if (actual_len > 0) ex->message.resize(actual_len - 1);
         JSStringRelease(s);
 
         // stack
@@ -63,25 +65,32 @@ static BuaException* make_exception(JSContextRef ctx, JSValueRef ex_val) {
         JSValueRef  stk     = JSObjectGetProperty(ctx, obj, stk_key, nullptr);
         if (!JSValueIsUndefined(ctx, stk)) {
             JSStringRef ss = JSValueToStringCopy(ctx, stk, nullptr);
-            size_t slen = JSStringGetMaximumUTF8CStringSize(ss);
-            ex->stack.resize(slen);
-            JSStringGetUTF8CString(ss, &ex->stack[0], slen);
+            size_t max_slen = JSStringGetMaximumUTF8CStringSize(ss);
+            ex->stack.resize(max_slen);
+            size_t actual_slen = JSStringGetUTF8CString(ss, &ex->stack[0], max_slen);
+            if (actual_slen > 0) ex->stack.resize(actual_slen - 1);
             JSStringRelease(ss);
         }
         JSStringRelease(stk_key);
     } else {
         JSStringRef s = JSValueToStringCopy(ctx, ex_obj, nullptr);
-        size_t len    = JSStringGetMaximumUTF8CStringSize(s);
-        ex->message.resize(len);
-        JSStringGetUTF8CString(s, &ex->message[0], len);
+        size_t max_len = JSStringGetMaximumUTF8CStringSize(s);
+        ex->message.resize(max_len);
+        size_t actual_len = JSStringGetUTF8CString(s, &ex->message[0], max_len);
+        if (actual_len > 0) ex->message.resize(actual_len - 1);
         JSStringRelease(s);
     }
     JSStringRelease(msg_key);
     return ex;
 }
 
-static JSValueRef bua_value_unwrap(BuaValue* v) {
-    return v ? v->val : nullptr;
+static BuaValue* make_bua_value(JSContextRef ctx, JSValueRef val) {
+    if (!val) return nullptr;
+    auto* v = new BuaValue();
+    v->val = val;
+    v->ctx = ctx;
+    JSValueProtect(ctx, val);
+    return v;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +132,8 @@ BuaValue* bua_eval(
     const char*    source_url,
     BuaException** out_exception
 ) {
-    JSStringRef src_str = JSStringCreateWithUTF8CString(source);
+    std::string source_s(source, source_len);
+    JSStringRef src_str = JSStringCreateWithUTF8CString(source_s.c_str());
     JSStringRef url_str = source_url
         ? JSStringCreateWithUTF8CString(source_url)
         : nullptr;
@@ -139,11 +149,7 @@ BuaValue* bua_eval(
         return nullptr;
     }
 
-    auto* v  = new BuaValue();
-    v->val   = result;
-    v->ctx   = bc->ctx;
-    JSValueProtect(bc->ctx, v->val);
-    return v;
+    return make_bua_value(bc->ctx, result);
 }
 
 // bua_eval_module: full ESM support requires JSC module loader callbacks
@@ -163,46 +169,33 @@ BuaValue* bua_eval_module(
 // ---------------------------------------------------------------------------
 
 BuaValue* bua_value_undefined(BuaContext* bc) {
-    auto* v = new BuaValue();
-    v->val  = JSValueMakeUndefined(bc->ctx);
-    v->ctx  = bc->ctx;
-    return v;
+    return make_bua_value(bc->ctx, JSValueMakeUndefined(bc->ctx));
 }
 
 BuaValue* bua_value_null(BuaContext* bc) {
-    auto* v = new BuaValue();
-    v->val  = JSValueMakeNull(bc->ctx);
-    v->ctx  = bc->ctx;
-    return v;
+    return make_bua_value(bc->ctx, JSValueMakeNull(bc->ctx));
 }
 
 BuaValue* bua_value_bool(BuaContext* bc, bool val) {
-    auto* v = new BuaValue();
-    v->val  = JSValueMakeBoolean(bc->ctx, val);
-    v->ctx  = bc->ctx;
-    return v;
+    return make_bua_value(bc->ctx, JSValueMakeBoolean(bc->ctx, val));
 }
 
 BuaValue* bua_value_number(BuaContext* bc, double val) {
-    auto* v = new BuaValue();
-    v->val  = JSValueMakeNumber(bc->ctx, val);
-    v->ctx  = bc->ctx;
-    return v;
+    return make_bua_value(bc->ctx, JSValueMakeNumber(bc->ctx, val));
 }
 
 BuaValue* bua_value_string(BuaContext* bc, const char* utf8, size_t len) {
-    JSStringRef s = JSStringCreateWithUTF8CString(utf8);
-    auto* v       = new BuaValue();
-    v->val        = JSValueMakeString(bc->ctx, s);
-    v->ctx        = bc->ctx;
+    std::string s_str(utf8, len);
+    JSStringRef s = JSStringCreateWithUTF8CString(s_str.c_str());
+    JSValueRef val = JSValueMakeString(bc->ctx, s);
     JSStringRelease(s);
-    JSValueProtect(bc->ctx, v->val);
-    return v;
+    return make_bua_value(bc->ctx, val);
 }
 
 BuaValue* bua_value_from_json(BuaContext* bc, const char* json, size_t len,
                               BuaException** out_exception) {
-    JSStringRef s   = JSStringCreateWithUTF8CString(json);
+    std::string j_str(json, len);
+    JSStringRef s   = JSStringCreateWithUTF8CString(j_str.c_str());
     JSValueRef  val = JSValueMakeFromJSONString(bc->ctx, s);
     JSStringRelease(s);
     if (!val) {
@@ -213,11 +206,7 @@ BuaValue* bua_value_from_json(BuaContext* bc, const char* json, size_t len,
         }
         return nullptr;
     }
-    auto* v = new BuaValue();
-    v->val  = val;
-    v->ctx  = bc->ctx;
-    JSValueProtect(bc->ctx, v->val);
-    return v;
+    return make_bua_value(bc->ctx, val);
 }
 
 // ---------------------------------------------------------------------------
@@ -246,28 +235,44 @@ double bua_value_to_number(BuaContext* bc, const BuaValue* v) {
 }
 
 char* bua_value_to_string_utf8(BuaContext* bc, const BuaValue* v, size_t* out_len) {
-    JSStringRef s   = JSValueToStringCopy(bc->ctx, v->val, nullptr);
-    size_t      len = JSStringGetMaximumUTF8CStringSize(s);
-    char*       buf = static_cast<char*>(malloc(len));
-    JSStringGetUTF8CString(s, buf, len);
+    JSStringRef s       = JSValueToStringCopy(bc->ctx, v->val, nullptr);
+    size_t      max_len = JSStringGetMaximumUTF8CStringSize(s);
+    char*       buf     = static_cast<char*>(malloc(max_len));
+    size_t      actual  = JSStringGetUTF8CString(s, buf, max_len);
     JSStringRelease(s);
-    if (out_len) *out_len = strlen(buf);
+    if (out_len) *out_len = (actual > 0) ? actual - 1 : 0;
     return buf;
 }
 
 char* bua_value_to_json(BuaContext* bc, const BuaValue* v, size_t* out_len) {
     JSStringRef s = JSValueCreateJSONString(bc->ctx, v->val, 0, nullptr);
     if (!s) return nullptr;
-    size_t len = JSStringGetMaximumUTF8CStringSize(s);
-    char*  buf = static_cast<char*>(malloc(len));
-    JSStringGetUTF8CString(s, buf, len);
+    size_t max_len = JSStringGetMaximumUTF8CStringSize(s);
+    char*  buf     = static_cast<char*>(malloc(max_len));
+    size_t actual  = JSStringGetUTF8CString(s, buf, max_len);
     JSStringRelease(s);
-    if (out_len) *out_len = strlen(buf);
+    if (out_len) *out_len = (actual > 0) ? actual - 1 : 0;
     return buf;
 }
 
 void bua_string_free(char* s) {
     free(s);
+}
+
+void bua_value_free(BuaValue* v) {
+    if (!v) return;
+    JSValueUnprotect(v->ctx, v->val);
+    delete v;
+}
+
+void bua_value_protect(BuaContext* bc, BuaValue* v) {
+    (void)bc;
+    if (v) JSValueProtect(v->ctx, v->val);
+}
+
+void bua_value_unprotect(BuaContext* bc, BuaValue* v) {
+    (void)bc;
+    if (v) JSValueUnprotect(v->ctx, v->val);
 }
 
 // ---------------------------------------------------------------------------
@@ -290,12 +295,11 @@ static JSValueRef native_callback(
     auto* entry = static_cast<NativeEntry*>(JSObjectGetPrivate(function));
     if (!entry) return JSValueMakeUndefined(ctx);
 
-    // Wrap args
+    // Wrap args - these BuaValues are owned by the native_callback
+    // and will be deleted after the call.
     std::vector<BuaValue*> args(argc);
     for (size_t i = 0; i < argc; ++i) {
-        args[i]      = new BuaValue();
-        args[i]->val = argv[i];
-        args[i]->ctx = ctx;
+        args[i] = make_bua_value(ctx, argv[i]);
     }
 
     BuaValue this_v{ this_obj, ctx };
@@ -309,7 +313,7 @@ static JSValueRef native_callback(
         &ex
     );
 
-    for (auto* a : args) delete a;
+    for (auto* a : args) bua_value_free(a);
 
     if (ex) {
         JSStringRef msg = JSStringCreateWithUTF8CString(ex->message.c_str());
@@ -320,7 +324,7 @@ static JSValueRef native_callback(
     }
 
     JSValueRef ret = result ? result->val : JSValueMakeUndefined(ctx);
-    delete result;
+    if (result) bua_value_free(result);
     return ret;
 }
 
@@ -378,6 +382,7 @@ bool bua_set_native(
 uint8_t* bua_snapshot_create(BuaContext* bc, size_t* out_size) {
     // JSC snapshot API (private): JSC::Snapshot::create(vm)
     // Public stub: return empty buffer.
+    (void)bc;
     static const uint8_t stub[] = { 0xB, 0xA, 0xA, 0x1 };
     *out_size = sizeof(stub);
     uint8_t* buf = static_cast<uint8_t*>(malloc(sizeof(stub)));
@@ -411,62 +416,85 @@ void bua_exception_free(BuaException* ex) {
 }
 
 // ---------------------------------------------------------------------------
-// Direct JSC function call — thin wrapper so Rust can call JSObjectCallAsFunction
-// without needing the full JavaScriptCore/JSObjectRef.h include on the Rust side.
+// Call/Promise
 // ---------------------------------------------------------------------------
 
-// These are declared as thin C wrappers around the real JSC calls.
-// They MUST match the signatures in bua_jsc_sys.rs jsc_call_as_function /
-// jsc_make_deferred_promise exactly (same parameter order, same pointer types).
-
-extern "C" JSValueRef jsc_call_as_function(
-    JSContextRef        ctx,
-    JSObjectRef         func,
-    JSObjectRef         this_obj,
-    size_t              arg_count,
-    const JSValueRef*   arguments,
-    JSValueRef*         exception
+BuaValue* bua_call_function(
+    BuaContext*    bc,
+    BuaValue*      func,
+    BuaValue*      this_obj,
+    size_t         arg_count,
+    BuaValue**     args,
+    BuaException** out_exception
 ) {
-    if (!JSObjectIsFunction(ctx, func)) {
-        if (exception) {
-            JSStringRef msg = JSStringCreateWithUTF8CString("call_function: object is not callable");
-            *exception = JSValueMakeString(ctx, msg);
-            JSStringRelease(msg);
+    JSObjectRef func_obj = JSValueToObject(bc->ctx, func->val, nullptr);
+    if (!func_obj || !JSObjectIsFunction(bc->ctx, func_obj)) {
+        if (out_exception) {
+            auto* ex = new BuaException();
+            ex->message = "call_function: object is not callable";
+            *out_exception = ex;
         }
         return nullptr;
     }
-    return JSObjectCallAsFunction(ctx, func, this_obj, arg_count, arguments, exception);
+
+    JSObjectRef this_ref = this_obj ? JSValueToObject(bc->ctx, this_obj->val, nullptr) : nullptr;
+
+    std::vector<JSValueRef> argv(arg_count);
+    for (size_t i = 0; i < arg_count; ++i) {
+        argv[i] = args[i]->val;
+    }
+
+    JSValueRef ex_val = nullptr;
+    JSValueRef result = JSObjectCallAsFunction(bc->ctx, func_obj, this_ref, arg_count, argv.data(), &ex_val);
+
+    if (ex_val) {
+        if (out_exception) *out_exception = make_exception(bc->ctx, ex_val);
+        return nullptr;
+    }
+
+    return make_bua_value(bc->ctx, result);
 }
 
-extern "C" JSObjectRef jsc_make_deferred_promise(
-    JSContextRef  ctx,
-    JSObjectRef*  resolve,
-    JSObjectRef*  reject,
-    JSValueRef*   exception
+BuaValue* bua_make_promise(
+    BuaContext*    bc,
+    BuaValue**     out_resolve,
+    BuaValue**     out_reject,
+    BuaException** out_exception
 ) {
+    JSObjectRef resolve_ref = nullptr;
+    JSObjectRef reject_ref  = nullptr;
+    JSValueRef  ex_val      = nullptr;
+
 #if defined(__APPLE__)
-    // JSObjectMakeDeferredPromise is available on Apple platforms since JSC 7604.1
-    return JSObjectMakeDeferredPromise(ctx, resolve, reject, exception);
+    JSObjectRef promise_ref = JSObjectMakeDeferredPromise(bc->ctx, &resolve_ref, &reject_ref, &ex_val);
 #else
-    // Linux: JSObjectMakeDeferredPromise may not be in the GTK headers.
-    // Implement via JS eval as a fallback.
-    (void)resolve; (void)reject;
     const char* src = "(function(){ let r,j; const p = new Promise((a,b)=>{r=a;j=b;}); return {p,r,j}; })()";
     JSStringRef script = JSStringCreateWithUTF8CString(src);
-    JSValueRef  result = JSEvaluateScript(ctx, script, nullptr, nullptr, 0, exception);
+    JSValueRef result = JSEvaluateScript(bc->ctx, script, nullptr, nullptr, 0, &ex_val);
     JSStringRelease(script);
-    if (!result || (exception && *exception)) return nullptr;
-    JSObjectRef obj = JSValueToObject(ctx, result, exception);
-    if (!obj) return nullptr;
-    // Extract p, r, j properties
-    auto getprop = [&](const char* key) -> JSObjectRef {
-        JSStringRef k = JSStringCreateWithUTF8CString(key);
-        JSValueRef  v = JSObjectGetProperty(ctx, obj, k, nullptr);
-        JSStringRelease(k);
-        return v ? JSValueToObject(ctx, v, nullptr) : nullptr;
-    };
-    if (resolve) *resolve = getprop("r");
-    if (reject)  *reject  = getprop("j");
-    return getprop("p");
+    JSObjectRef promise_ref = nullptr;
+    if (result && !ex_val) {
+        JSObjectRef obj = JSValueToObject(bc->ctx, result, &ex_val);
+        if (obj && !ex_val) {
+            auto getprop = [&](const char* key) -> JSObjectRef {
+                JSStringRef k = JSStringCreateWithUTF8CString(key);
+                JSValueRef v = JSObjectGetProperty(bc->ctx, obj, k, nullptr);
+                JSStringRelease(k);
+                return v ? JSValueToObject(bc->ctx, v, nullptr) : nullptr;
+            };
+            resolve_ref = getprop("r");
+            reject_ref  = getprop("j");
+            promise_ref = getprop("p");
+        }
+    }
 #endif
+
+    if (ex_val || !promise_ref) {
+        if (out_exception) *out_exception = make_exception(bc->ctx, ex_val);
+        return nullptr;
+    }
+
+    if (out_resolve) *out_resolve = make_bua_value(bc->ctx, resolve_ref);
+    if (out_reject)  *out_reject  = make_bua_value(bc->ctx, reject_ref);
+    return make_bua_value(bc->ctx, promise_ref);
 }

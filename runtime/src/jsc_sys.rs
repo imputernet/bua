@@ -90,6 +90,9 @@ pub mod stubs {
         std::ptr::null_mut()
     }
     pub unsafe fn bua_string_free(s: *mut c_char) {}
+    pub unsafe fn bua_value_free(v: *mut c_void) {}
+    pub unsafe fn bua_value_protect(ctx: *mut c_void, v: *mut c_void) {}
+    pub unsafe fn bua_value_unprotect(ctx: *mut c_void, v: *mut c_void) {}
     pub unsafe fn bua_set_native(
         ctx: *mut c_void,
         path: *const c_char,
@@ -124,6 +127,35 @@ pub mod stubs {
         std::ptr::null()
     }
     pub unsafe fn bua_exception_free(ex: *mut c_void) {}
+
+    pub unsafe fn bua_call_function(
+        ctx: *mut c_void,
+        func: *mut c_void,
+        this: *mut c_void,
+        argc: usize,
+        argv: *const *mut c_void,
+        ex: *mut *mut c_void,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    pub unsafe fn bua_make_promise(
+        ctx: *mut c_void,
+        resolve: *mut *mut c_void,
+        reject: *mut *mut c_void,
+        ex: *mut *mut c_void,
+    ) -> *mut c_void {
+        unsafe {
+            if !resolve.is_null() {
+                *resolve = std::ptr::null_mut();
+            }
+            if !reject.is_null() {
+                *reject = std::ptr::null_mut();
+            }
+        }
+        std::ptr::null_mut()
+    }
+
     pub unsafe fn jsc_value_protect(ctx: *mut c_void, val: *const c_void) {}
     pub unsafe fn jsc_value_unprotect(ctx: *mut c_void, val: *const c_void) {}
     pub unsafe fn jsc_call_as_function(

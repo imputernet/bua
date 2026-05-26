@@ -169,6 +169,9 @@ extern "C" {
         out_len: *mut usize,
     ) -> *mut c_char;
     pub fn bua_string_free(s: *mut c_char);
+    pub fn bua_value_free(v: *mut c_void);
+    pub fn bua_value_protect(ctx: *mut c_void, v: *mut c_void);
+    pub fn bua_value_unprotect(ctx: *mut c_void, v: *mut c_void);
 
     // --- Native functions ---
     pub fn bua_set_native(
@@ -194,6 +197,76 @@ extern "C" {
     pub fn bua_exception_message(ex: *const c_void) -> *const c_char;
     pub fn bua_exception_stack(ex: *const c_void) -> *const c_char;
     pub fn bua_exception_free(ex: *mut c_void);
+
+    // --- Call/Promise ---
+    pub fn bua_call_function(
+        ctx: *mut c_void,
+        func: *mut c_void,
+        this_obj: *mut c_void,
+        arg_count: usize,
+        args: *const *mut c_void,
+        out_exception: *mut *mut c_void,
+    ) -> *mut c_void;
+
+    pub fn bua_make_promise(
+        ctx: *mut c_void,
+        out_resolve: *mut *mut c_void,
+        out_reject: *mut *mut c_void,
+        out_exception: *mut *mut c_void,
+    ) -> *mut c_void;
+}
+
+/// Protect a JSValueRef from GC collection.
+///
+/// # Safety
+/// Pointers must be valid JSC objects in the given context.
+#[inline]
+pub unsafe fn jsc_value_protect(ctx: *mut c_void, value: *const c_void) {
+    bua_value_protect(ctx, value as *mut _);
+}
+
+/// Release GC protection on a JSValueRef.
+///
+/// # Safety
+/// Pointers must be valid JSC objects in the given context.
+#[inline]
+pub unsafe fn jsc_value_unprotect(ctx: *mut c_void, value: *const c_void) {
+    bua_value_unprotect(ctx, value as *mut _);
+}
+
+/// Call a JS function.
+///
+/// # Safety
+/// All pointers must be valid JSC objects in the given context.
+pub unsafe fn jsc_call_as_function(
+    ctx: *mut c_void,
+    func: *mut c_void,
+    this_obj: *mut c_void,
+    arg_count: usize,
+    arguments: *const *const c_void,
+    exception: *mut *mut c_void,
+) -> *mut c_void {
+    bua_call_function(
+        ctx,
+        func,
+        this_obj,
+        arg_count,
+        arguments as *const *mut _,
+        exception,
+    )
+}
+
+/// Create a deferred promise.
+///
+/// # Safety
+/// All pointers must be valid JSC objects in the given context.
+pub unsafe fn jsc_make_deferred_promise(
+    ctx: *mut c_void,
+    resolve: *mut *mut c_void,
+    reject: *mut *mut c_void,
+    exception: *mut *mut c_void,
+) -> *mut c_void {
+    bua_make_promise(ctx, resolve, reject, exception)
 }
 
 // ---------------------------------------------------------------------------
@@ -232,114 +305,4 @@ pub unsafe fn read_cstr(ptr: *const c_char) -> String {
         return String::new();
     }
     std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned()
-}
-
-// ---------------------------------------------------------------------------
-// Direct JSC protect/unprotect — called by HandleInner::Drop
-// These are the raw JSC API calls, not the bua_* bridge.
-// ---------------------------------------------------------------------------
-
-extern "C" {
-    /// JSValueProtect — increment GC ref count for a value.
-    /// Maps to JSValueProtect(ctx, value) in JavaScriptCore/JSValueRef.h
-    pub fn JSValueProtect(ctx: *mut c_void, value: *const c_void);
-
-    /// JSValueUnprotect — decrement GC ref count.
-    /// Maps to JSValueUnprotect(ctx, value) in JavaScriptCore/JSValueRef.h
-    pub fn JSValueUnprotect(ctx: *mut c_void, value: *const c_void);
-}
-
-/// Safe wrapper — protect a JSValueRef from GC collection.
-///
-/// # Safety
-/// - ctx and value must be valid JSC pointers on the JS thread.
-#[inline]
-pub unsafe fn jsc_value_protect(ctx: *mut c_void, value: *const c_void) {
-    JSValueProtect(ctx, value);
-}
-
-/// Safe wrapper — release GC protection on a JSValueRef.
-///
-/// # Safety
-/// - ctx and value must be valid JSC pointers on the JS thread.
-/// - Must be called at most once per JSValueProtect call.
-#[inline]
-pub unsafe fn jsc_value_unprotect(ctx: *mut c_void, value: *const c_void) {
-    JSValueUnprotect(ctx, value);
-}
-
-// ---------------------------------------------------------------------------
-// Direct JSC function call + deferred Promise construction
-// Not routed through bua_jsc.cpp — these are straight JSC C API calls.
-// ---------------------------------------------------------------------------
-
-extern "C" {
-    /// JSObjectCallAsFunction — invoke a JS callable object.
-    /// ctx:       JSContextRef
-    /// func:      JSObjectRef (must satisfy JSObjectIsFunction)
-    /// this_obj:  JSObjectRef for `this`, or null for undefined-this
-    /// arg_count: number of arguments
-    /// arguments: array of JSValueRef arguments (may be null if arg_count == 0)
-    /// exception: written on throw; caller must check and free
-    /// returns:   JSValueRef result (null on exception)
-    pub fn JSObjectCallAsFunction(
-        ctx: *const c_void,
-        object: *mut c_void,
-        this_obj: *mut c_void,
-        arg_count: usize,
-        arguments: *const *const c_void,
-        exception: *mut *const c_void,
-    ) -> *const c_void;
-
-    /// JSObjectMakeDeferredPromise — create a Promise with resolve/reject handles.
-    /// Available since JSC 7604.1 (macOS 10.15 / iOS 13).
-    /// ctx:      JSContextRef
-    /// resolve:  out-param for the resolve JSObjectRef function
-    /// reject:   out-param for the reject JSObjectRef function
-    /// exception: written on failure
-    /// returns:  the Promise JSObjectRef
-    pub fn JSObjectMakeDeferredPromise(
-        ctx: *mut c_void,
-        resolve: *mut *mut c_void,
-        reject: *mut *mut c_void,
-        exception: *mut *const c_void,
-    ) -> *mut c_void;
-}
-
-/// Thin safe shim so context.rs can call JSObjectCallAsFunction
-/// with the same signature as the bua_* bridge functions.
-///
-/// # Safety
-/// All pointers must be valid JSC objects on the current JS thread.
-#[inline]
-pub unsafe fn jsc_call_as_function(
-    ctx: *mut c_void,
-    func: *mut c_void,
-    this_obj: *mut c_void,
-    arg_count: usize,
-    arguments: *const *const c_void,
-    exception: *mut *mut c_void,
-) -> *mut c_void {
-    JSObjectCallAsFunction(
-        ctx as *const _,
-        func,
-        this_obj,
-        arg_count,
-        arguments,
-        exception as *mut *const _,
-    ) as *mut _
-}
-
-/// Thin safe shim so context.rs can call JSObjectMakeDeferredPromise.
-///
-/// # Safety
-/// ctx must be a valid JSContextRef on the current JS thread.
-#[inline]
-pub unsafe fn jsc_make_deferred_promise(
-    ctx: *mut c_void,
-    resolve: *mut *mut c_void,
-    reject: *mut *mut c_void,
-    exception: *mut *mut c_void,
-) -> *mut c_void {
-    JSObjectMakeDeferredPromise(ctx, resolve, reject, exception as *mut *const _)
 }

@@ -80,10 +80,6 @@ static BuaException* make_exception(JSContextRef ctx, JSValueRef ex_val) {
     return ex;
 }
 
-static JSValueRef bua_value_unwrap(BuaValue* v) {
-    return v ? v->val : nullptr;
-}
-
 // ---------------------------------------------------------------------------
 // Context lifecycle
 // ---------------------------------------------------------------------------
@@ -123,7 +119,8 @@ BuaValue* bua_eval(
     const char*    source_url,
     BuaException** out_exception
 ) {
-    JSStringRef src_str = JSStringCreateWithUTF8CString(source);
+    std::string source_s(source, source_len);
+    JSStringRef src_str = JSStringCreateWithUTF8CString(source_s.c_str());
     JSStringRef url_str = source_url
         ? JSStringCreateWithUTF8CString(source_url)
         : nullptr;
@@ -191,7 +188,8 @@ BuaValue* bua_value_number(BuaContext* bc, double val) {
 }
 
 BuaValue* bua_value_string(BuaContext* bc, const char* utf8, size_t len) {
-    JSStringRef s = JSStringCreateWithUTF8CString(utf8);
+    std::string s_str(utf8, len);
+    JSStringRef s = JSStringCreateWithUTF8CString(s_str.c_str());
     auto* v       = new BuaValue();
     v->val        = JSValueMakeString(bc->ctx, s);
     v->ctx        = bc->ctx;
@@ -202,7 +200,8 @@ BuaValue* bua_value_string(BuaContext* bc, const char* utf8, size_t len) {
 
 BuaValue* bua_value_from_json(BuaContext* bc, const char* json, size_t len,
                               BuaException** out_exception) {
-    JSStringRef s   = JSStringCreateWithUTF8CString(json);
+    std::string j_str(json, len);
+    JSStringRef s   = JSStringCreateWithUTF8CString(j_str.c_str());
     JSValueRef  val = JSValueMakeFromJSONString(bc->ctx, s);
     JSStringRelease(s);
     if (!val) {
@@ -378,6 +377,7 @@ bool bua_set_native(
 uint8_t* bua_snapshot_create(BuaContext* bc, size_t* out_size) {
     // JSC snapshot API (private): JSC::Snapshot::create(vm)
     // Public stub: return empty buffer.
+    (void)bc;
     static const uint8_t stub[] = { 0xB, 0xA, 0xA, 0x1 };
     *out_size = sizeof(stub);
     uint8_t* buf = static_cast<uint8_t*>(malloc(sizeof(stub)));

@@ -194,6 +194,23 @@ extern "C" {
     pub fn bua_exception_message(ex: *const c_void) -> *const c_char;
     pub fn bua_exception_stack(ex: *const c_void) -> *const c_char;
     pub fn bua_exception_free(ex: *mut c_void);
+
+    // --- Direct JSC function call + deferred Promise construction ---
+    pub fn jsc_call_as_function(
+        ctx: *mut c_void,
+        func: *mut c_void,
+        this_obj: *mut c_void,
+        arg_count: usize,
+        arguments: *const *const c_void,
+        exception: *mut *mut c_void,
+    ) -> *mut c_void;
+
+    pub fn jsc_make_deferred_promise(
+        ctx: *mut c_void,
+        resolve: *mut *mut c_void,
+        reject: *mut *mut c_void,
+        exception: *mut *mut c_void,
+    ) -> *mut c_void;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,78 +285,3 @@ pub unsafe fn jsc_value_unprotect(ctx: *mut c_void, value: *const c_void) {
     JSValueUnprotect(ctx, value);
 }
 
-// ---------------------------------------------------------------------------
-// Direct JSC function call + deferred Promise construction
-// Not routed through bua_jsc.cpp — these are straight JSC C API calls.
-// ---------------------------------------------------------------------------
-
-extern "C" {
-    /// JSObjectCallAsFunction — invoke a JS callable object.
-    /// ctx:       JSContextRef
-    /// func:      JSObjectRef (must satisfy JSObjectIsFunction)
-    /// this_obj:  JSObjectRef for `this`, or null for undefined-this
-    /// arg_count: number of arguments
-    /// arguments: array of JSValueRef arguments (may be null if arg_count == 0)
-    /// exception: written on throw; caller must check and free
-    /// returns:   JSValueRef result (null on exception)
-    pub fn JSObjectCallAsFunction(
-        ctx: *const c_void,
-        object: *mut c_void,
-        this_obj: *mut c_void,
-        arg_count: usize,
-        arguments: *const *const c_void,
-        exception: *mut *const c_void,
-    ) -> *const c_void;
-
-    /// JSObjectMakeDeferredPromise — create a Promise with resolve/reject handles.
-    /// Available since JSC 7604.1 (macOS 10.15 / iOS 13).
-    /// ctx:      JSContextRef
-    /// resolve:  out-param for the resolve JSObjectRef function
-    /// reject:   out-param for the reject JSObjectRef function
-    /// exception: written on failure
-    /// returns:  the Promise JSObjectRef
-    pub fn JSObjectMakeDeferredPromise(
-        ctx: *mut c_void,
-        resolve: *mut *mut c_void,
-        reject: *mut *mut c_void,
-        exception: *mut *const c_void,
-    ) -> *mut c_void;
-}
-
-/// Thin safe shim so context.rs can call JSObjectCallAsFunction
-/// with the same signature as the bua_* bridge functions.
-///
-/// # Safety
-/// All pointers must be valid JSC objects on the current JS thread.
-#[inline]
-pub unsafe fn jsc_call_as_function(
-    ctx: *mut c_void,
-    func: *mut c_void,
-    this_obj: *mut c_void,
-    arg_count: usize,
-    arguments: *const *const c_void,
-    exception: *mut *mut c_void,
-) -> *mut c_void {
-    JSObjectCallAsFunction(
-        ctx as *const _,
-        func,
-        this_obj,
-        arg_count,
-        arguments,
-        exception as *mut *const _,
-    ) as *mut _
-}
-
-/// Thin safe shim so context.rs can call JSObjectMakeDeferredPromise.
-///
-/// # Safety
-/// ctx must be a valid JSContextRef on the current JS thread.
-#[inline]
-pub unsafe fn jsc_make_deferred_promise(
-    ctx: *mut c_void,
-    resolve: *mut *mut c_void,
-    reject: *mut *mut c_void,
-    exception: *mut *mut c_void,
-) -> *mut c_void {
-    JSObjectMakeDeferredPromise(ctx, resolve, reject, exception as *mut *const _)
-}

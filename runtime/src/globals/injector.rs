@@ -3,11 +3,11 @@
 use bua_core::BuaResult;
 use std::sync::Arc;
 
+use crate::deterministic::clock::DeterministicClock;
 use crate::ffi::context::JscContext;
+use crate::runtime::capability_ctx::CapabilityContext;
 use crate::runtime::tool_ctx::ToolContext;
 use crate::runtime::trace_ctx::TraceContext;
-use crate::runtime::capability_ctx::CapabilityContext;
-use crate::deterministic::clock::DeterministicClock;
 
 /// Injects the full `globalThis.Bua` API surface into a JSC context.
 pub struct GlobalInjector {
@@ -60,17 +60,19 @@ impl GlobalInjector {
     }
 
     fn register_tool_natives(&self, ctx: &mut JscContext) -> BuaResult<()> {
-        let tools = self.tools.clone();
+        let _tools = self.tools.clone();
 
         ctx.register_native(
             "__bua_tools_call__",
             Arc::new(move |_ctx, args| {
-                let name = args.get(0)
+                let _name = args
+                    .first()
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| crate::ffi::value::JsException::new("tools.call: missing name"))?
                     .to_string();
 
-                let js_args = args.get(1)
+                let _js_args = args
+                    .get(1)
                     .map(|v| v.to_json())
                     .unwrap_or(serde_json::Value::Object(Default::default()));
 
@@ -100,15 +102,19 @@ impl GlobalInjector {
             "__bua_trace_log__",
             Arc::new(move |_ctx, args| {
                 use bua_core::trace::LogLevel;
-                let level_str = args.get(0).and_then(|v| v.as_str()).unwrap_or("info");
-                let msg = args.get(1).and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let level_str = args.first().and_then(|v| v.as_str()).unwrap_or("info");
+                let msg = args
+                    .get(1)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
 
                 let level = match level_str {
                     "error" => LogLevel::Error,
-                    "warn"  => LogLevel::Warn,
+                    "warn" => LogLevel::Warn,
                     "debug" => LogLevel::Debug,
                     "trace" => LogLevel::Trace,
-                    _       => LogLevel::Info,
+                    _ => LogLevel::Info,
                 };
 
                 trace.log(level, &msg);
@@ -123,9 +129,7 @@ impl GlobalInjector {
         let clock = self.clock.clone();
         ctx.register_native(
             "__bua_time_now__",
-            Arc::new(move |_ctx, _args| {
-                Ok(crate::ffi::value::JsValue::Number(clock.now_ms()))
-            }),
+            Arc::new(move |_ctx, _args| Ok(crate::ffi::value::JsValue::Number(clock.now_ms()))),
         )?;
 
         let clock2 = self.clock.clone();
@@ -141,7 +145,7 @@ impl GlobalInjector {
         ctx.register_native(
             "__bua_time_advance__",
             Arc::new(move |_ctx, args| {
-                let ms = args.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let ms = args.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
                 clock3.advance(std::time::Duration::from_millis(ms as u64));
                 Ok(crate::ffi::value::JsValue::Undefined)
             }),
@@ -156,7 +160,7 @@ impl GlobalInjector {
         ctx.register_native(
             "__bua_env_get__",
             Arc::new(move |_ctx, args| {
-                let key = match args.get(0).and_then(|v| v.as_str()) {
+                let key = match args.first().and_then(|v| v.as_str()) {
                     Some(k) => k.to_string(),
                     None => return Ok(crate::ffi::value::JsValue::Undefined),
                 };
@@ -180,33 +184,49 @@ impl GlobalInjector {
     fn register_memory_natives(&self, ctx: &mut JscContext) -> BuaResult<()> {
         // Phase 2: wire to MemoryStore.
         // For now: no-op stubs so the module surface is consistent.
-        ctx.register_native("__bua_memory_put__",
-            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Undefined)))?;
-        ctx.register_native("__bua_memory_get__",
-            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Undefined)))?;
-        ctx.register_native("__bua_memory_del__",
-            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Undefined)))?;
-        ctx.register_native("__bua_memory_list__",
-            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::String("[]".into()))))?;
+        ctx.register_native(
+            "__bua_memory_put__",
+            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Undefined)),
+        )?;
+        ctx.register_native(
+            "__bua_memory_get__",
+            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Undefined)),
+        )?;
+        ctx.register_native(
+            "__bua_memory_del__",
+            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Undefined)),
+        )?;
+        ctx.register_native(
+            "__bua_memory_list__",
+            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::String("[]".into()))),
+        )?;
         Ok(())
     }
 
     fn register_random_natives(&self, ctx: &mut JscContext) -> BuaResult<()> {
         // Phase 2: wire to DeterministicRng.
-        ctx.register_native("__bua_random_seed__",
-            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Undefined)))?;
-        ctx.register_native("__bua_random_next__",
-            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Number(js_random()))))?;
+        ctx.register_native(
+            "__bua_random_seed__",
+            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Undefined)),
+        )?;
+        ctx.register_native(
+            "__bua_random_next__",
+            Arc::new(|_, _| Ok(crate::ffi::value::JsValue::Number(js_random()))),
+        )?;
         Ok(())
     }
 
     fn build_bootstrap_script(&self) -> String {
         let version = self.bua_version;
         let agent_id = &self.agent_id;
-        let parent_id = self.parent_id.as_deref().map(|s| format!(r#""{s}""#))
+        let parent_id = self
+            .parent_id
+            .as_deref()
+            .map(|s| format!(r#""{s}""#))
             .unwrap_or("undefined".into());
 
-        format!(r#"
+        format!(
+            r#"
 (function() {{
   'use strict';
 
@@ -288,7 +308,8 @@ impl GlobalInjector {
   globalThis.process = {{ exit: (code) => __bua_trace_log__('info', `process.exit(${{code}})`) }};
 
 }})();
-"#)
+"#
+        )
     }
 }
 

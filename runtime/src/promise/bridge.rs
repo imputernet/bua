@@ -19,15 +19,15 @@
 //  10. JSC calls the stored resolve fn -> Promise resolves
 //  11. drain_microtasks() -> JS continuations run
 
-use bua_core::{BuaResult, BuaError};
+use bua_core::{BuaError, BuaResult};
 use dashmap::DashMap;
 use std::future::Future;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::ffi::value::{JsException, JsValue, PromiseHandle};
 use super::queue::{Resolution, ResolutionQueue};
+use crate::ffi::value::{JsException, JsValue, PromiseHandle};
 
 /// Unique identifier for a tracked promise.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -39,6 +39,12 @@ impl PromiseId {
     }
 }
 
+impl Default for PromiseId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl std::fmt::Display for PromiseId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "prom-{}", self.0.as_simple())
@@ -46,6 +52,8 @@ impl std::fmt::Display for PromiseId {
 }
 
 /// A live pending promise.
+#[derive(Debug)]
+#[allow(dead_code)]
 struct PendingPromise {
     id: PromiseId,
     handle: PromiseHandle,
@@ -137,14 +145,13 @@ impl PromiseBridge {
     pub fn spawn_tool_call(
         &self,
         handle: PromiseHandle,
-        tool_name: String,
+        _tool_name: String,
         tool_future: impl Future<Output = BuaResult<serde_json::Value>> + Send + 'static,
     ) -> PromiseId {
         self.spawn_task(handle, async move {
             match tool_future.await {
                 Ok(json_val) => Ok(JsValue::from_json(json_val)),
-                Err(e) => Err(JsException::new(e.to_string())
-                    .with_name(classify_error_name(&e))),
+                Err(e) => Err(JsException::new(e.to_string()).with_name(classify_error_name(&e))),
             }
         })
     }

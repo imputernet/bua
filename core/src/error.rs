@@ -13,7 +13,10 @@ pub enum BuaError {
 
     // --- JS engine errors ---
     #[error("js exception: {message}")]
-    JsException { message: String, stack: Option<String> },
+    JsException {
+        message: String,
+        stack: Option<String>,
+    },
 
     #[error("js engine init failed: {0}")]
     JsEngineInit(String),

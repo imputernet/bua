@@ -3,7 +3,7 @@
 // VmContext owns the JS engine handle and module loader for one agent.
 // It is the only entry point for executing JavaScript.
 
-use bua_core::{BuaError, BuaResult};
+use bua_core::BuaResult;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -32,8 +32,8 @@ impl Default for VmConfig {
 /// Owns the JS engine and module loader for one agent.
 #[derive(Clone)]
 pub struct VmContext {
-    pub(crate) engine: JscEngine,
-    pub(crate) loader: Arc<ModuleLoader>,
+    pub engine: JscEngine,
+    pub loader: Arc<ModuleLoader>,
 }
 
 impl VmContext {
@@ -43,20 +43,17 @@ impl VmContext {
             drain_microtasks_after_eval: config.drain_microtasks,
         })?;
 
-        let loader = Arc::new(ModuleLoader::new(
-            config.base_dir,
-            Transpiler::default(),
-        ));
+        let loader = Arc::new(ModuleLoader::new(config.base_dir, Transpiler::default()));
 
         Ok(Self { engine, loader })
     }
 
     /// Load, transpile, and execute a module entrypoint.
     pub async fn run_module(&self, entrypoint: &Path) -> BuaResult<JsValue> {
-        let module = self.loader.load(
-            &entrypoint.to_string_lossy(),
-            None,
-        ).await?;
+        let module = self
+            .loader
+            .load(&entrypoint.to_string_lossy(), None)
+            .await?;
 
         let source = module.source.to_string();
         let url = module.resolved_path.to_string_lossy().into_owned();
@@ -69,7 +66,9 @@ impl VmContext {
         // Transpile if it looks like TypeScript
         let js = if source.contains(": ") || source.contains("interface ") {
             let transpiler = Transpiler::default();
-            transpiler.transpile(source, url.unwrap_or("<snippet>"))?.code
+            transpiler
+                .transpile(source, url.unwrap_or("<snippet>"))?
+                .code
         } else {
             source.to_string()
         };

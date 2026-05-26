@@ -28,37 +28,24 @@ pub enum ResolvedSpecifier {
 ///   2. Relative (./  ../) -> probe extensions relative to referrer
 ///   3. Absolute (/) -> probe extensions
 ///   4. Bare specifier -> error (no node_modules in Bua)
+#[allow(dead_code)]
 pub struct ModuleResolver {
     root: PathBuf,
 }
 
 const PROBE_EXTENSIONS: &[&str] = &[
-    "",          // exact match
-    ".ts",
-    ".js",
-    ".mts",
-    ".mjs",
-    ".tsx",
-    ".jsx",
+    "", // exact match
+    ".ts", ".js", ".mts", ".mjs", ".tsx", ".jsx",
 ];
 
-const INDEX_FILES: &[&str] = &[
-    "index.ts",
-    "index.js",
-    "index.mts",
-    "index.mjs",
-];
+const INDEX_FILES: &[&str] = &["index.ts", "index.js", "index.mts", "index.mjs"];
 
 impl ModuleResolver {
     pub fn new(root: PathBuf) -> Self {
         Self { root }
     }
 
-    pub fn resolve(
-        &self,
-        specifier: &str,
-        ctx: &ResolveContext,
-    ) -> BuaResult<ResolvedSpecifier> {
+    pub fn resolve(&self, specifier: &str, ctx: &ResolveContext) -> BuaResult<ResolvedSpecifier> {
         // 1. Bua builtins
         if let Some(name) = specifier.strip_prefix("bua:") {
             return Ok(ResolvedSpecifier::Builtin(name.to_string()));
@@ -162,7 +149,9 @@ mod tests {
         let referrer = dir.path().join("main.ts");
 
         let r = resolver_in(dir.path());
-        let result = r.resolve("./utils", &ctx(dir.path(), Some(&referrer))).unwrap();
+        let result = r
+            .resolve("./utils", &ctx(dir.path(), Some(&referrer)))
+            .unwrap();
         assert!(matches!(result, ResolvedSpecifier::File(_)));
     }
 
@@ -184,7 +173,9 @@ mod tests {
 
         let referrer = dir.path().join("main.ts");
         let r = resolver_in(dir.path());
-        let result = r.resolve("./utils", &ctx(dir.path(), Some(&referrer))).unwrap();
+        let result = r
+            .resolve("./utils", &ctx(dir.path(), Some(&referrer)))
+            .unwrap();
         assert!(matches!(result, ResolvedSpecifier::File(_)));
     }
 }

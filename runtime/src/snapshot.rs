@@ -30,12 +30,12 @@ const FORMAT_VERSION: u16 = 2;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum StratumTag {
-    Vm         = 0x0001,
+    Vm = 0x0001,
     Capability = 0x0002,
-    Trace      = 0x0003,
-    Tool       = 0x0004,
-    Scheduler  = 0x0005,
-    Memory     = 0x0006,
+    Trace = 0x0003,
+    Tool = 0x0004,
+    Scheduler = 0x0005,
+    Memory = 0x0006,
 }
 
 impl StratumTag {
@@ -134,19 +134,30 @@ impl LayeredSnapshot {
     }
 
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
-        if let Some(h) = &mut self.header { h.label = Some(label.into()); }
+        if let Some(h) = &mut self.header {
+            h.label = Some(label.into());
+        }
         self
     }
     pub fn with_vm(mut self, heap_bytes: Vec<u8>) -> Self {
-        self.vm = Some(VmStratum { heap_bytes, jsc_version: "JSC/stub-0.1".into() });
+        self.vm = Some(VmStratum {
+            heap_bytes,
+            jsc_version: "JSC/stub-0.1".into(),
+        });
         self
     }
     pub fn with_capability(mut self, capabilities: CapabilitySet, generation: u64) -> Self {
-        self.capability = Some(CapabilityStratum { capabilities, generation });
+        self.capability = Some(CapabilityStratum {
+            capabilities,
+            generation,
+        });
         self
     }
     pub fn with_trace(mut self, ndjson: String, event_count: u64) -> Self {
-        self.trace = Some(TraceStratum { ndjson, event_count });
+        self.trace = Some(TraceStratum {
+            ndjson,
+            event_count,
+        });
         self
     }
     pub fn with_tool_log(mut self, call_log: Vec<ToolCallRecord>) -> Self {
@@ -154,23 +165,46 @@ impl LayeredSnapshot {
         self
     }
     pub fn with_scheduler(mut self, child_agent_ids: Vec<String>, pending_task_count: u64) -> Self {
-        self.scheduler = Some(SchedulerStratum { child_agent_ids, pending_task_count });
+        self.scheduler = Some(SchedulerStratum {
+            child_agent_ids,
+            pending_task_count,
+        });
         self
     }
-    pub fn with_memory(mut self, entries: HashMap<String, serde_json::Value>, namespace: String) -> Self {
+    pub fn with_memory(
+        mut self,
+        entries: HashMap<String, serde_json::Value>,
+        namespace: String,
+    ) -> Self {
         self.memory = Some(MemoryStratum { entries, namespace });
         self
     }
 
-    pub fn has_vm(&self) -> bool { self.vm.is_some() }
-    pub fn has_trace(&self) -> bool { self.trace.is_some() }
-    pub fn has_capability(&self) -> bool { self.capability.is_some() }
-    pub fn has_memory(&self) -> bool { self.memory.is_some() }
+    pub fn has_vm(&self) -> bool {
+        self.vm.is_some()
+    }
+    pub fn has_trace(&self) -> bool {
+        self.trace.is_some()
+    }
+    pub fn has_capability(&self) -> bool {
+        self.capability.is_some()
+    }
+    pub fn has_memory(&self) -> bool {
+        self.memory.is_some()
+    }
 
     pub fn strata_count(&self) -> usize {
-        [self.vm.is_some(), self.capability.is_some(), self.trace.is_some(),
-         self.tool.is_some(), self.scheduler.is_some(), self.memory.is_some()]
-            .iter().filter(|&&b| b).count()
+        [
+            self.vm.is_some(),
+            self.capability.is_some(),
+            self.trace.is_some(),
+            self.tool.is_some(),
+            self.scheduler.is_some(),
+            self.memory.is_some(),
+        ]
+        .iter()
+        .filter(|&&b| b)
+        .count()
     }
 
     pub fn serialize(&self) -> BuaResult<Vec<u8>> {
@@ -179,12 +213,24 @@ impl LayeredSnapshot {
         out.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
         let header_bytes = serde_json::to_vec(&self.header).map_err(BuaError::Serialize)?;
         write_stratum_raw(&mut out, 0x0000, &header_bytes);
-        if let Some(ref s) = self.vm       { write_stratum(&mut out, StratumTag::Vm, s)?; }
-        if let Some(ref s) = self.capability { write_stratum(&mut out, StratumTag::Capability, s)?; }
-        if let Some(ref s) = self.trace    { write_stratum(&mut out, StratumTag::Trace, s)?; }
-        if let Some(ref s) = self.tool     { write_stratum(&mut out, StratumTag::Tool, s)?; }
-        if let Some(ref s) = self.scheduler { write_stratum(&mut out, StratumTag::Scheduler, s)?; }
-        if let Some(ref s) = self.memory   { write_stratum(&mut out, StratumTag::Memory, s)?; }
+        if let Some(ref s) = self.vm {
+            write_stratum(&mut out, StratumTag::Vm, s)?;
+        }
+        if let Some(ref s) = self.capability {
+            write_stratum(&mut out, StratumTag::Capability, s)?;
+        }
+        if let Some(ref s) = self.trace {
+            write_stratum(&mut out, StratumTag::Trace, s)?;
+        }
+        if let Some(ref s) = self.tool {
+            write_stratum(&mut out, StratumTag::Tool, s)?;
+        }
+        if let Some(ref s) = self.scheduler {
+            write_stratum(&mut out, StratumTag::Scheduler, s)?;
+        }
+        if let Some(ref s) = self.memory {
+            write_stratum(&mut out, StratumTag::Memory, s)?;
+        }
         let crc = crc32_simple(&out);
         out.extend_from_slice(&crc.to_le_bytes());
         Ok(out)
@@ -195,7 +241,7 @@ impl LayeredSnapshot {
             return Err(BuaError::SnapshotRestore("too short".into()));
         }
         if &data[..8] != MAGIC {
-            return Err(BuaError::SnapshotRestore(format!("invalid magic")));
+            return Err(BuaError::SnapshotRestore("invalid magic".to_string()));
         }
         let crc_offset = data.len() - 4;
         let stored_crc = u32::from_le_bytes(data[crc_offset..].try_into().unwrap());
@@ -207,29 +253,47 @@ impl LayeredSnapshot {
         }
         let version = u16::from_le_bytes(data[8..10].try_into().unwrap());
         if version > FORMAT_VERSION {
-            return Err(BuaError::SnapshotRestore(format!("unsupported version {version}")));
+            return Err(BuaError::SnapshotRestore(format!(
+                "unsupported version {version}"
+            )));
         }
         let mut snap = LayeredSnapshot::default();
         let mut pos = 10usize;
         while pos + 6 <= crc_offset {
-            let tag = u16::from_le_bytes(data[pos..pos+2].try_into().unwrap());
-            let len = u32::from_le_bytes(data[pos+2..pos+6].try_into().unwrap()) as usize;
+            let tag = u16::from_le_bytes(data[pos..pos + 2].try_into().unwrap());
+            let len = u32::from_le_bytes(data[pos + 2..pos + 6].try_into().unwrap()) as usize;
             pos += 6;
             if pos + len > crc_offset {
                 return Err(BuaError::SnapshotRestore("stratum overflow".into()));
             }
-            let payload = &data[pos..pos+len];
+            let payload = &data[pos..pos + len];
             pos += len;
             match tag {
-                0x0000 => { snap.header = serde_json::from_slice(payload).ok(); }
+                0x0000 => {
+                    snap.header = serde_json::from_slice(payload).ok();
+                }
                 t => match StratumTag::from_u16(t) {
-                    Some(StratumTag::Vm)         => { snap.vm = serde_json::from_slice(payload).ok(); }
-                    Some(StratumTag::Capability) => { snap.capability = serde_json::from_slice(payload).ok(); }
-                    Some(StratumTag::Trace)      => { snap.trace = serde_json::from_slice(payload).ok(); }
-                    Some(StratumTag::Tool)       => { snap.tool = serde_json::from_slice(payload).ok(); }
-                    Some(StratumTag::Scheduler)  => { snap.scheduler = serde_json::from_slice(payload).ok(); }
-                    Some(StratumTag::Memory)     => { snap.memory = serde_json::from_slice(payload).ok(); }
-                    None => { tracing::debug!(tag = t, "unknown stratum skipped"); }
+                    Some(StratumTag::Vm) => {
+                        snap.vm = serde_json::from_slice(payload).ok();
+                    }
+                    Some(StratumTag::Capability) => {
+                        snap.capability = serde_json::from_slice(payload).ok();
+                    }
+                    Some(StratumTag::Trace) => {
+                        snap.trace = serde_json::from_slice(payload).ok();
+                    }
+                    Some(StratumTag::Tool) => {
+                        snap.tool = serde_json::from_slice(payload).ok();
+                    }
+                    Some(StratumTag::Scheduler) => {
+                        snap.scheduler = serde_json::from_slice(payload).ok();
+                    }
+                    Some(StratumTag::Memory) => {
+                        snap.memory = serde_json::from_slice(payload).ok();
+                    }
+                    None => {
+                        tracing::debug!(tag = t, "unknown stratum skipped");
+                    }
                 },
             }
         }
@@ -268,7 +332,11 @@ fn crc32_simple(data: &[u8]) -> u32 {
     for &byte in data {
         crc ^= byte as u32;
         for _ in 0..8 {
-            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ 0xEDB8_8320
+            } else {
+                crc >> 1
+            };
         }
     }
     crc ^ 0xFFFF_FFFF
@@ -287,11 +355,19 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn new(execution_id: ExecutionId, capabilities: CapabilitySet, trace_ndjson: String, heap_bytes: Vec<u8>) -> Self {
+    pub fn new(
+        execution_id: ExecutionId,
+        capabilities: CapabilitySet,
+        trace_ndjson: String,
+        heap_bytes: Vec<u8>,
+    ) -> Self {
         Self {
             version: 1,
             execution_id,
-            timestamp_us: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_micros() as u64,
+            timestamp_us: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_micros() as u64,
             capabilities,
             trace_ndjson,
             heap_bytes,
@@ -326,12 +402,20 @@ mod tests {
             .with_vm(vec![0xDE, 0xAD])
             .with_capability(CapabilitySet::new(), 0)
             .with_trace(r#"{"id":0}"#.into(), 1)
-            .with_tool_log(vec![ToolCallRecord { sequence: 0, name: "t".into(), args_json: "{}".into(), result_json: "{}".into(), duration_us: 100, was_error: false }])
+            .with_tool_log(vec![ToolCallRecord {
+                sequence: 0,
+                name: "t".into(),
+                args_json: "{}".into(),
+                result_json: "{}".into(),
+                duration_us: 100,
+                was_error: false,
+            }])
             .with_scheduler(vec![], 0)
             .with_memory([("k".into(), serde_json::json!("v"))].into(), "ns".into())
     }
 
-    #[test] fn roundtrip() {
+    #[test]
+    fn roundtrip() {
         let snap = full_snap();
         assert_eq!(snap.strata_count(), 6);
         let bytes = snap.serialize().unwrap();
@@ -341,19 +425,26 @@ mod tests {
         assert_eq!(loaded.header.unwrap().label.as_deref(), Some("test"));
     }
 
-    #[test] fn crc_detect() {
+    #[test]
+    fn crc_detect() {
         let mut bytes = full_snap().serialize().unwrap();
-        bytes[bytes.len() / 2] ^= 0xFF;
-        assert!(LayeredSnapshot::deserialize(&bytes).unwrap_err().to_string().contains("CRC"));
+        let mid = bytes.len() / 2;
+        bytes[mid] ^= 0xFF;
+        assert!(LayeredSnapshot::deserialize(&bytes)
+            .unwrap_err()
+            .to_string()
+            .contains("CRC"));
     }
 
-    #[test] fn wrong_magic() {
+    #[test]
+    fn wrong_magic() {
         let mut bytes = full_snap().serialize().unwrap();
         bytes[0] = 0xFF;
         assert!(LayeredSnapshot::deserialize(&bytes).is_err());
     }
 
-    #[test] fn partial_snap() {
+    #[test]
+    fn partial_snap() {
         let snap = LayeredSnapshot::new(ExecutionId::new()).with_trace("{}".into(), 0);
         let bytes = snap.serialize().unwrap();
         let loaded = LayeredSnapshot::deserialize(&bytes).unwrap();
@@ -361,7 +452,8 @@ mod tests {
         assert!(loaded.trace.is_some());
     }
 
-    #[tokio::test] async fn file_roundtrip() {
+    #[tokio::test]
+    async fn file_roundtrip() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("a.bsnap");
         full_snap().write_to_file(&path).await.unwrap();
@@ -369,8 +461,14 @@ mod tests {
         assert_eq!(loaded.strata_count(), 6);
     }
 
-    #[test] fn legacy_upgrade() {
-        let old = Snapshot::new(ExecutionId::new(), CapabilitySet::new(), "{}\n".into(), vec![1,2]);
+    #[test]
+    fn legacy_upgrade() {
+        let old = Snapshot::new(
+            ExecutionId::new(),
+            CapabilitySet::new(),
+            "{}\n".into(),
+            vec![1, 2],
+        );
         let new = old.upgrade();
         assert!(new.has_vm() && new.has_trace() && new.has_capability());
     }

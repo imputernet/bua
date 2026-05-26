@@ -5,6 +5,9 @@ pub mod error;
 pub mod trace;
 pub mod types;
 
-pub use capabilities::{Capability, CapabilitySet, Permission};
+pub use capabilities::{
+    Capability, CapabilitySet, EnvCapability, FsCapability, FsMode, NetCapability, Permission,
+    SubprocessCapability,
+};
 pub use error::{BuaError, BuaResult};
 pub use types::{AgentId, ExecutionId, TaskId};

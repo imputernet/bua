@@ -5,7 +5,6 @@
 ///   - ToolRegistry view
 ///   - ExecutionTrace
 ///   - Tokio task handle
-
 use bua_core::{AgentId, BuaError, BuaResult, CapabilitySet, ExecutionId};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -94,10 +93,15 @@ impl AgentHandle {
     ) -> BuaResult<crate::tools::ToolResult> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
-            .send(AgentMessage::ToolCall { call, reply: reply_tx })
+            .send(AgentMessage::ToolCall {
+                call,
+                reply: reply_tx,
+            })
             .await
             .map_err(|_| BuaError::internal("agent channel closed"))?;
-        reply_rx.await.map_err(|_| BuaError::internal("agent reply channel closed"))
+        reply_rx
+            .await
+            .map_err(|_| BuaError::internal("agent reply channel closed"))
     }
 
     pub async fn shutdown(mut self) -> AgentStatus {
@@ -120,10 +124,7 @@ pub struct Agent;
 
 impl Agent {
     /// Spawn an agent task and return its handle.
-    pub fn spawn(
-        config: AgentConfig,
-        tools: Arc<ToolRegistry>,
-    ) -> BuaResult<AgentHandle> {
+    pub fn spawn(config: AgentConfig, tools: Arc<ToolRegistry>) -> BuaResult<AgentHandle> {
         let (tx, mut rx) = mpsc::channel::<AgentMessage>(64);
         let execution_id = ExecutionId::new();
         let agent_id = config.id.clone();
@@ -160,6 +161,7 @@ impl Agent {
             };
 
             // Message pump — handles tool calls while JS runs.
+            let mut eval_handle = eval_handle;
             let status = loop {
                 tokio::select! {
                     msg = rx.recv() => {
@@ -173,7 +175,7 @@ impl Agent {
                             }
                         }
                     }
-                    result = eval_handle => {
+                    result = &mut eval_handle => {
                         match result {
                             Ok(Ok(_)) => break AgentStatus::Completed { exit_code: 0 },
                             Ok(Err(e)) => break AgentStatus::Failed { error: e.to_string() },
@@ -194,7 +196,9 @@ impl Agent {
             tokio::spawn(async move {
                 match tokio::time::timeout(dur, task).await {
                     Ok(Ok(s)) => s,
-                    Ok(Err(_)) => AgentStatus::Failed { error: "join error".into() },
+                    Ok(Err(_)) => AgentStatus::Failed {
+                        error: "join error".into(),
+                    },
                     Err(_) => {
                         tracing::warn!(agent_id = %id, "agent timed out");
                         AgentStatus::TimedOut
@@ -202,7 +206,11 @@ impl Agent {
                 }
             })
         } else {
-            tokio::spawn(async move { task.await.unwrap_or(AgentStatus::Failed { error: "join error".into() }) })
+            tokio::spawn(async move {
+                task.await.unwrap_or(AgentStatus::Failed {
+                    error: "join error".into(),
+                })
+            })
         };
 
         Ok(AgentHandle {

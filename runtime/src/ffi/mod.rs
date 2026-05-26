@@ -6,9 +6,9 @@
 // Rule: no *mut, no unsafe, no JSC types outside this module tree.
 
 pub mod context;
-pub mod value;
 pub mod engine;
+pub mod value;
 
 pub use context::JscContext;
-pub use value::{JsValue, ObjectHandle, ArrayHandle, FunctionHandle};
 pub use engine::JscEngine;
+pub use value::{ArrayHandle, FunctionHandle, JsValue, ObjectHandle};

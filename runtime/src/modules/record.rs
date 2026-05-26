@@ -30,7 +30,11 @@ impl ModuleStatus {
         matches!(self, Self::Linked)
     }
     pub fn failed_reason(&self) -> Option<&str> {
-        if let Self::Failed(r) = self { Some(r) } else { None }
+        if let Self::Failed(r) = self {
+            Some(r)
+        } else {
+            None
+        }
     }
 }
 
@@ -84,7 +88,9 @@ impl ModuleRecord {
     }
 
     pub fn is_builtin(&self) -> bool {
-        self.resolved_path.to_string_lossy().starts_with("__bua_builtin__")
+        self.resolved_path
+            .to_string_lossy()
+            .starts_with("__bua_builtin__")
     }
 
     /// Mark this module as currently being linked (cycle detection entry point).
@@ -178,7 +184,12 @@ fn extract_quoted_specifier(line: &str) -> Option<String> {
             let before = &line[..end];
             if let Some(start) = before.rfind(*quote) {
                 let spec = &line[start + 1..end];
-                if !spec.is_empty() && (spec.starts_with('.') || spec.starts_with('/') || spec.starts_with("bua:") || !spec.contains(' ')) {
+                if !spec.is_empty()
+                    && (spec.starts_with('.')
+                        || spec.starts_with('/')
+                        || spec.starts_with("bua:")
+                        || !spec.contains(' '))
+                {
                     return Some(spec.to_string());
                 }
             }
@@ -191,11 +202,14 @@ fn extract_quoted_specifier(line: &str) -> Option<String> {
 pub fn detect_top_level_await(source: &str) -> bool {
     for line in source.lines() {
         let t = line.trim();
-        if t.starts_with("//") { continue; }
+        if t.starts_with("//") {
+            continue;
+        }
         // Top-level await: `await expr` not inside a function body
         // Heuristic: `await ` at start of statement at top indentation
         if (t.starts_with("await ") || t.starts_with("const x = await") || t.contains("= await "))
-            && !line.starts_with("  ") && !line.starts_with('\t')
+            && !line.starts_with("  ")
+            && !line.starts_with('\t')
         {
             return true;
         }

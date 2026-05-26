@@ -8,12 +8,12 @@
 //   - Events are immutable once written
 //   - NDJSON export for streaming/storage/replay
 
-use bua_core::{AgentId, ExecutionId};
 use bua_core::trace::{ExecutionTrace, LogLevel, TraceEventKind};
+use bua_core::{AgentId, ExecutionId};
 use parking_lot::Mutex;
 use serde_json::Value;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Shared, append-only trace for one agent execution.
 #[derive(Clone, Debug)]
@@ -48,7 +48,10 @@ impl TraceContext {
     }
 
     pub fn execution_end(&self, exit_code: i32, duration_us: u64) {
-        self.emit(TraceEventKind::ExecutionEnd { exit_code, duration_us });
+        self.emit(TraceEventKind::ExecutionEnd {
+            exit_code,
+            duration_us,
+        });
     }
 
     pub fn agent_spawn(&self, agent_id: AgentId, parent_id: Option<AgentId>, entrypoint: &str) {

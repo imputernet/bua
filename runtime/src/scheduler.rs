@@ -5,14 +5,13 @@
 ///   - Concurrency limits
 ///   - Agent registry
 ///   - Graceful shutdown
-
 use bua_core::{AgentId, BuaResult};
 use dashmap::DashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use tokio::sync::Semaphore;
 
-use crate::agent::{Agent, AgentConfig, AgentHandle, AgentStatus};
+use crate::agent::{Agent, AgentConfig, AgentHandle};
 use crate::tools::ToolRegistry;
 
 /// Scheduler configuration.
@@ -44,6 +43,7 @@ struct AgentRecord {
 }
 
 /// The central agent scheduler.
+#[allow(dead_code)]
 pub struct AgentScheduler {
     config: SchedulerConfig,
     tools: Arc<ToolRegistry>,
@@ -88,7 +88,7 @@ impl AgentScheduler {
 
         let agents = self.agents.clone();
         let id_str = agent_id.to_string();
-        let id_str_inner = id_str.clone();
+        let _id_str_inner = id_str.clone();
 
         // Move the permit and handle into a watcher task that cleans up on completion.
         let record = AgentRecord {

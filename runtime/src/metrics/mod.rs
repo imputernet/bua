@@ -4,9 +4,8 @@
 // All metrics are atomic — zero locking, cheap to read from any thread.
 // Exported as NDJSON, structured JSON, or human-readable text.
 
-use serde::Serialize;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 // ---------------------------------------------------------------------------
@@ -44,15 +43,23 @@ impl Histogram {
         self.buckets[bucket].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn count(&self) -> u64 { self.count.load(Ordering::Relaxed) }
+    pub fn count(&self) -> u64 {
+        self.count.load(Ordering::Relaxed)
+    }
 
     pub fn mean_us(&self) -> f64 {
         let c = self.count();
-        if c == 0 { 0.0 } else { self.sum_us.load(Ordering::Relaxed) as f64 / c as f64 }
+        if c == 0 {
+            0.0
+        } else {
+            self.sum_us.load(Ordering::Relaxed) as f64 / c as f64
+        }
     }
 
     pub fn to_json(&self) -> serde_json::Value {
-        let buckets: Vec<u64> = self.buckets.iter()
+        let buckets: Vec<u64> = self
+            .buckets
+            .iter()
             .map(|b| b.load(Ordering::Relaxed))
             .collect();
         serde_json::json!({
@@ -70,51 +77,55 @@ impl Histogram {
     }
 }
 
-impl Default for Histogram { fn default() -> Self { Self::new() } }
+impl Default for Histogram {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // ---------------------------------------------------------------------------
 // RuntimeMetrics — the top-level metrics object
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RuntimeMetrics {
     // --- Execution ---
-    pub agents_started:   AtomicU64,
+    pub agents_started: AtomicU64,
     pub agents_completed: AtomicU64,
-    pub agents_failed:    AtomicU64,
+    pub agents_failed: AtomicU64,
     pub agents_timed_out: AtomicU64,
-    pub agents_active:    AtomicI64,
+    pub agents_active: AtomicI64,
 
     // --- Tool calls ---
-    pub tool_calls_total:  AtomicU64,
+    pub tool_calls_total: AtomicU64,
     pub tool_calls_failed: AtomicU64,
-    pub tool_latency:      Histogram,
+    pub tool_latency: Histogram,
 
     // --- Promise bridge ---
-    pub promises_created:  AtomicU64,
+    pub promises_created: AtomicU64,
     pub promises_resolved: AtomicU64,
     pub promises_rejected: AtomicU64,
-    pub promises_pending:  AtomicI64,
+    pub promises_pending: AtomicI64,
 
     // --- Module loader ---
-    pub modules_loaded:       AtomicU64,
-    pub modules_cache_hits:   AtomicU64,
-    pub modules_transpiled:   AtomicU64,
-    pub module_load_latency:  Histogram,
+    pub modules_loaded: AtomicU64,
+    pub modules_cache_hits: AtomicU64,
+    pub modules_transpiled: AtomicU64,
+    pub module_load_latency: Histogram,
 
     // --- Snapshots ---
     pub snapshots_written: AtomicU64,
-    pub snapshots_loaded:  AtomicU64,
-    pub snapshot_bytes:    AtomicU64,
+    pub snapshots_loaded: AtomicU64,
+    pub snapshot_bytes: AtomicU64,
 
     // --- JS engine ---
-    pub eval_calls:    AtomicU64,
-    pub eval_latency:  Histogram,
+    pub eval_calls: AtomicU64,
+    pub eval_latency: Histogram,
     pub microtask_drains: AtomicU64,
 
     // --- Permission checks ---
     pub permission_checks_allowed: AtomicU64,
-    pub permission_checks_denied:  AtomicU64,
+    pub permission_checks_denied: AtomicU64,
 
     // --- Process start time ---
     #[allow(dead_code)]
@@ -124,8 +135,31 @@ pub struct RuntimeMetrics {
 impl RuntimeMetrics {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
+            agents_started: AtomicU64::new(0),
+            agents_completed: AtomicU64::new(0),
+            agents_failed: AtomicU64::new(0),
+            agents_timed_out: AtomicU64::new(0),
+            agents_active: AtomicI64::new(0),
+            tool_calls_total: AtomicU64::new(0),
+            tool_calls_failed: AtomicU64::new(0),
+            tool_latency: Histogram::new(),
+            promises_created: AtomicU64::new(0),
+            promises_resolved: AtomicU64::new(0),
+            promises_rejected: AtomicU64::new(0),
+            promises_pending: AtomicI64::new(0),
+            modules_loaded: AtomicU64::new(0),
+            modules_cache_hits: AtomicU64::new(0),
+            modules_transpiled: AtomicU64::new(0),
+            module_load_latency: Histogram::new(),
+            snapshots_written: AtomicU64::new(0),
+            snapshots_loaded: AtomicU64::new(0),
+            snapshot_bytes: AtomicU64::new(0),
+            eval_calls: AtomicU64::new(0),
+            eval_latency: Histogram::new(),
+            microtask_drains: AtomicU64::new(0),
+            permission_checks_allowed: AtomicU64::new(0),
+            permission_checks_denied: AtomicU64::new(0),
             start_time: Instant::now(),
-            ..Default::default()
         })
     }
 
@@ -173,8 +207,12 @@ impl RuntimeMetrics {
     // --- Modules ---
     pub fn module_loaded(&self, was_cache_hit: bool, was_transpiled: bool, duration_us: u64) {
         self.modules_loaded.fetch_add(1, Ordering::Relaxed);
-        if was_cache_hit { self.modules_cache_hits.fetch_add(1, Ordering::Relaxed); }
-        if was_transpiled { self.modules_transpiled.fetch_add(1, Ordering::Relaxed); }
+        if was_cache_hit {
+            self.modules_cache_hits.fetch_add(1, Ordering::Relaxed);
+        }
+        if was_transpiled {
+            self.modules_transpiled.fetch_add(1, Ordering::Relaxed);
+        }
         self.module_load_latency.record(duration_us);
     }
 
@@ -185,8 +223,14 @@ impl RuntimeMetrics {
     }
 
     // --- Permissions ---
-    pub fn permission_allowed(&self) { self.permission_checks_allowed.fetch_add(1, Ordering::Relaxed); }
-    pub fn permission_denied(&self)  { self.permission_checks_denied.fetch_add(1, Ordering::Relaxed); }
+    pub fn permission_allowed(&self) {
+        self.permission_checks_allowed
+            .fetch_add(1, Ordering::Relaxed);
+    }
+    pub fn permission_denied(&self) {
+        self.permission_checks_denied
+            .fetch_add(1, Ordering::Relaxed);
+    }
 
     /// Export all metrics as a single JSON object.
     pub fn to_json(&self) -> serde_json::Value {
@@ -238,12 +282,10 @@ impl RuntimeMetrics {
     pub fn to_ndjson_event(&self) -> String {
         let mut val = self.to_json();
         val["type"] = serde_json::json!("metrics");
-        val["timestamp_us"] = serde_json::json!(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_micros() as u64
-        );
+        val["timestamp_us"] = serde_json::json!(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_micros() as u64);
         serde_json::to_string(&val).unwrap_or_default()
     }
 
@@ -275,8 +317,8 @@ mod tests {
     #[test]
     fn histogram_records_correctly() {
         let h = Histogram::new();
-        h.record(50);    // <100µs bucket
-        h.record(500);   // <1ms bucket
+        h.record(50); // <100µs bucket
+        h.record(500); // <1ms bucket
         h.record(5_000); // <10ms bucket
         assert_eq!(h.count(), 3);
         let mean = h.mean_us();

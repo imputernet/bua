@@ -47,7 +47,9 @@ impl BuiltinRegistry {
 }
 
 impl Default for BuiltinRegistry {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -340,7 +342,9 @@ mod tests {
     #[test]
     fn all_builtins_registered() {
         let reg = BuiltinRegistry::new();
-        for name in &["fs", "env", "trace", "agent", "tools", "time", "memory", "random"] {
+        for name in &[
+            "fs", "env", "trace", "agent", "tools", "time", "memory", "random",
+        ] {
             assert!(reg.get(name).is_some(), "missing builtin: bua:{name}");
         }
     }

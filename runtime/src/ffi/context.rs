@@ -449,11 +449,11 @@ unsafe extern "C" fn native_trampoline(
     out_ex: *mut *mut std::ffi::c_void,
 ) -> *mut std::ffi::c_void {
     let entry = &*(user_data as *const NativeEntry);
-    let temp_ctx = JscContext {
+    let temp_ctx = std::mem::ManuallyDrop::new(JscContext {
         ctx_ptr: ctx_ptr as usize,
         native_entries: Vec::new(),
         poisoned: false,
-    };
+    });
     let args: Vec<JsValue> = (0..argc)
         .map(|i| {
             let ptr = *raw_args.add(i);
@@ -464,7 +464,6 @@ unsafe extern "C" fn native_trampoline(
             }
         })
         .collect();
-    std::mem::forget(temp_ctx);
     match (entry.func)(
         &JscContext {
             ctx_ptr: ctx_ptr as usize,

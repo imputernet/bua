@@ -20,7 +20,7 @@ pub struct JscContext {
 }
 
 impl JscContext {
-    pub fn new(_max_heap_bytes: usize) -> BuaResult<Self> {
+    pub fn new(max_heap_bytes: usize) -> BuaResult<Self> {
         #[cfg(jsc_available)]
         {
             use crate::jsc_sys;
@@ -38,6 +38,7 @@ impl JscContext {
         }
         #[cfg(not(jsc_available))]
         {
+            let _ = max_heap_bytes;
             Ok(Self {
                 ctx_ptr: 0,
                 native_entries: Vec::new(),
@@ -46,7 +47,7 @@ impl JscContext {
         }
     }
 
-    pub fn eval(&self, _source: &str, _source_url: Option<&str>) -> Result<JsValue, JsException> {
+    pub fn eval(&self, source: &str, source_url: Option<&str>) -> Result<JsValue, JsException> {
         self.check_not_poisoned()?;
         #[cfg(jsc_available)]
         {
@@ -86,11 +87,12 @@ impl JscContext {
         }
         #[cfg(not(jsc_available))]
         {
+            let _ = (source, source_url);
             Ok(JsValue::Undefined)
         }
     }
 
-    pub fn eval_module(&self, _source: &str, _module_url: &str) -> Result<JsValue, JsException> {
+    pub fn eval_module(&self, source: &str, module_url: &str) -> Result<JsValue, JsException> {
         self.check_not_poisoned()?;
         #[cfg(jsc_available)]
         {
@@ -121,6 +123,7 @@ impl JscContext {
         }
         #[cfg(not(jsc_available))]
         {
+            let _ = (source, module_url);
             Ok(JsValue::Undefined)
         }
     }
@@ -157,8 +160,8 @@ impl JscContext {
     pub fn call_function(
         &self,
         func: &FunctionHandle,
-        _this: Option<&JsValue>,
-        _args: Vec<JsValue>,
+        this: Option<&JsValue>,
+        args: Vec<JsValue>,
     ) -> Result<JsValue, JsException> {
         self.check_not_poisoned()?;
         if func.is_stub() {
@@ -172,7 +175,7 @@ impl JscContext {
                 .iter()
                 .map(|v| v.to_jsc_arg(self.ctx_ptr) as *const _)
                 .collect();
-            let this_ptr = _this
+            let this_ptr = this
                 .and_then(|v| v.raw_ptr())
                 .map(|p| p as *mut std::ffi::c_void)
                 .unwrap_or(ptr::null_mut());
@@ -214,6 +217,7 @@ impl JscContext {
         }
         #[cfg(not(jsc_available))]
         {
+            let _ = (this, args);
             Ok(JsValue::Undefined)
         }
     }
@@ -248,7 +252,8 @@ impl JscContext {
                 FunctionHandle::new(reject_ptr as usize, ctx),
                 ObjectHandle::new(promise_ptr as usize, ctx),
             );
-            return Ok((handle, handle.promise_value()));
+            let promise_val = handle.promise_value();
+            Ok((handle, promise_val))
         }
         #[cfg(not(jsc_available))]
         {
@@ -288,8 +293,7 @@ impl JscContext {
         #[cfg(jsc_available)]
         {
             use crate::jsc_sys;
-            use std::ptr;
-            let mut ex_ptr: *mut std::ffi::c_void = ptr::null_mut();
+            let mut ex_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
             let result = unsafe {
                 jsc_sys::bua_value_from_json(
                     self.ctx_ptr as *mut _,
@@ -307,7 +311,7 @@ impl JscContext {
             if (result as usize) == 0 {
                 return Ok(JsValue::Null);
             }
-            return Ok(self.wrap_jsc_value(result as usize));
+            Ok(self.wrap_jsc_value(result as usize))
         }
         #[cfg(not(jsc_available))]
         {
@@ -340,7 +344,7 @@ impl JscContext {
         }
     }
 
-    pub fn restore_heap(&mut self, _data: &[u8]) -> BuaResult<()> {
+    pub fn restore_heap(&mut self, data: &[u8]) -> BuaResult<()> {
         #[cfg(jsc_available)]
         {
             use crate::jsc_sys;
@@ -356,6 +360,7 @@ impl JscContext {
         }
         #[cfg(not(jsc_available))]
         {
+            let _ = data;
             Ok(())
         }
     }
@@ -449,7 +454,7 @@ unsafe extern "C" fn native_trampoline(
         native_entries: Vec::new(),
         poisoned: false,
     };
-    let _args: Vec<JsValue> = (0..argc)
+    let args: Vec<JsValue> = (0..argc)
         .map(|i| {
             let ptr = *raw_args.add(i);
             if (ptr as usize) == 0 {

@@ -113,6 +113,10 @@ char* bua_value_to_json(BuaContext* ctx, const BuaValue* v, size_t* out_len);
 
 void bua_string_free(char* s);
 
+void bua_value_free(BuaValue* v);
+void bua_value_protect(BuaContext* ctx, BuaValue* v);
+void bua_value_unprotect(BuaContext* ctx, BuaValue* v);
+
 // ---------------------------------------------------------------------------
 // Native function registration
 // ---------------------------------------------------------------------------
@@ -147,6 +151,26 @@ void bua_snapshot_free(uint8_t* data);
 const char* bua_exception_message(const BuaException* ex);
 const char* bua_exception_stack(const BuaException* ex);
 void        bua_exception_free(BuaException* ex);
+
+// ---------------------------------------------------------------------------
+// Call/Promise
+// ---------------------------------------------------------------------------
+
+BuaValue* bua_call_function(
+    BuaContext*    ctx,
+    BuaValue*      func,
+    BuaValue*      this_obj,
+    size_t         arg_count,
+    BuaValue**     args,
+    BuaException** out_exception
+);
+
+BuaValue* bua_make_promise(
+    BuaContext*    ctx,
+    BuaValue**     out_resolve,
+    BuaValue**     out_reject,
+    BuaException** out_exception
+);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -23,10 +23,8 @@ impl Drop for HandleInner {
         }
         #[cfg(jsc_available)]
         unsafe {
-            let ctx = self.ctx_ptr as *mut std::ffi::c_void;
-            let val = self.ptr as *const std::ffi::c_void;
-            crate::jsc_sys::jsc_value_unprotect(ctx, val);
-            crate::jsc_sys::bua_value_free(val as *mut _);
+            let val = self.ptr as *mut std::ffi::c_void;
+            crate::jsc_sys::bua_value_free(val);
         }
     }
 }
@@ -41,12 +39,7 @@ impl HandleInner {
         if ptr == 0 || ctx_ptr == 0 {
             return Self::stub();
         }
-        #[cfg(jsc_available)]
-        unsafe {
-            let ctx = ctx_ptr as *mut std::ffi::c_void;
-            let val = ptr as *const std::ffi::c_void;
-            crate::jsc_sys::jsc_value_protect(ctx, val);
-        }
+        // Note: bridge functions (eval, call_function) return already-protected values.
         Arc::new(Self { ptr, ctx_ptr })
     }
 }

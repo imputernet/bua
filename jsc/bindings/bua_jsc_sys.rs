@@ -169,6 +169,9 @@ extern "C" {
         out_len: *mut usize,
     ) -> *mut c_char;
     pub fn bua_string_free(s: *mut c_char);
+    pub fn bua_value_free(v: *mut c_void);
+    pub fn bua_value_protect(ctx: *mut c_void, v: *mut c_void);
+    pub fn bua_value_unprotect(ctx: *mut c_void, v: *mut c_void);
 
     // --- Native functions ---
     pub fn bua_set_native(
@@ -195,22 +198,59 @@ extern "C" {
     pub fn bua_exception_stack(ex: *const c_void) -> *const c_char;
     pub fn bua_exception_free(ex: *mut c_void);
 
-    // --- Direct JSC function call + deferred Promise construction ---
-    pub fn jsc_call_as_function(
+    // --- Call/Promise ---
+    pub fn bua_call_function(
         ctx: *mut c_void,
         func: *mut c_void,
         this_obj: *mut c_void,
         arg_count: usize,
-        arguments: *const *const c_void,
-        exception: *mut *mut c_void,
+        args: *const *mut c_void,
+        out_exception: *mut *mut c_void,
     ) -> *mut c_void;
 
-    pub fn jsc_make_deferred_promise(
+    pub fn bua_make_promise(
         ctx: *mut c_void,
-        resolve: *mut *mut c_void,
-        reject: *mut *mut c_void,
-        exception: *mut *mut c_void,
+        out_resolve: *mut *mut c_void,
+        out_reject: *mut *mut c_void,
+        out_exception: *mut *mut c_void,
     ) -> *mut c_void;
+}
+
+#[inline]
+pub unsafe fn jsc_value_protect(ctx: *mut c_void, value: *const c_void) {
+    bua_value_protect(ctx, value as *mut _);
+}
+
+#[inline]
+pub unsafe fn jsc_value_unprotect(ctx: *mut c_void, value: *const c_void) {
+    bua_value_unprotect(ctx, value as *mut _);
+}
+
+pub unsafe fn jsc_call_as_function(
+    ctx: *mut c_void,
+    func: *mut c_void,
+    this_obj: *mut c_void,
+    arg_count: usize,
+    arguments: *const *const c_void,
+    exception: *mut *mut c_void,
+) -> *mut c_void {
+    bua_call_function(
+        ctx,
+        func,
+        this_obj,
+        arg_count,
+        arguments as *const *mut _,
+        exception,
+    )
+}
+
+pub unsafe fn jsc_make_deferred_promise(
+    ctx: *mut c_void,
+    resolve: *mut *mut c_void,
+    reject: *mut *mut c_void,
+    exception: *mut *mut c_void,
+) -> *mut c_void {
+    bua_make_promise(ctx, resolve, reject, exception)
 }
 
 // ---------------------------------------------------------------------------
@@ -250,38 +290,3 @@ pub unsafe fn read_cstr(ptr: *const c_char) -> String {
     }
     std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned()
 }
-
-// ---------------------------------------------------------------------------
-// Direct JSC protect/unprotect — called by HandleInner::Drop
-// These are the raw JSC API calls, not the bua_* bridge.
-// ---------------------------------------------------------------------------
-
-extern "C" {
-    /// JSValueProtect — increment GC ref count for a value.
-    /// Maps to JSValueProtect(ctx, value) in JavaScriptCore/JSValueRef.h
-    pub fn JSValueProtect(ctx: *mut c_void, value: *const c_void);
-
-    /// JSValueUnprotect — decrement GC ref count.
-    /// Maps to JSValueUnprotect(ctx, value) in JavaScriptCore/JSValueRef.h
-    pub fn JSValueUnprotect(ctx: *mut c_void, value: *const c_void);
-}
-
-/// Safe wrapper — protect a JSValueRef from GC collection.
-///
-/// # Safety
-/// - ctx and value must be valid JSC pointers on the JS thread.
-#[inline]
-pub unsafe fn jsc_value_protect(ctx: *mut c_void, value: *const c_void) {
-    JSValueProtect(ctx, value);
-}
-
-/// Safe wrapper — release GC protection on a JSValueRef.
-///
-/// # Safety
-/// - ctx and value must be valid JSC pointers on the JS thread.
-/// - Must be called at most once per JSValueProtect call.
-#[inline]
-pub unsafe fn jsc_value_unprotect(ctx: *mut c_void, value: *const c_void) {
-    JSValueUnprotect(ctx, value);
-}
-

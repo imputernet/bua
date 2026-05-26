@@ -230,7 +230,7 @@ impl JsValue {
                 Self::String(s) => {
                     jsc_sys::bua_value_string(ctx, s.as_ptr() as *const _, s.len()) as usize
                 }
-                Self::Object(h) | Self::Array(_) | Self::Function(_) => self.raw_ptr().unwrap_or(0),
+                Self::Object(_) | Self::Array(_) | Self::Function(_) => self.raw_ptr().unwrap_or(0),
                 Self::BigInt(s) => {
                     jsc_sys::bua_value_string(ctx, s.as_ptr() as *const _, s.len()) as usize
                 }

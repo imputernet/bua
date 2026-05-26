@@ -25,11 +25,10 @@ reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], defau
 
 # Raw JSC bindings — included as a path source so build.rs can gate them
 # bua_jsc_sys is re-exported through runtime/src/jsc_sys.rs
-bua-jsc-sys = { path = "../jsc/bindings", optional = true }
+bua-jsc-sys = { path = "../jsc/bindings" }
 
 [features]
 # Enabled automatically by build.rs when JSC is detected
-jsc = ["bua-jsc-sys"]
 
 [build-dependencies]
 cc = "1.0"

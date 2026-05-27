@@ -67,7 +67,7 @@ Bua is an AI-native deterministic JavaScript/TypeScript runtime for autonomous a
 #### Distribution
 - GitHub Releases (binary tarballs + checksums)
 - GHCR container (`ghcr.io/imputernet/bua`)
-- npm (`bua.js`) with optional platform-specific binary packages
+- npm (`@imputer/bua`) with optional platform-specific binary packages
 
 [Unreleased]: https://github.com/imputernet/bua/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/imputernet/bua/releases/tag/v0.1.0

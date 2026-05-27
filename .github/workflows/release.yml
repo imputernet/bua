@@ -172,10 +172,10 @@ jobs:
             BUA_VERSION=${{ github.ref_name }}
 
   # ---------------------------------------------------------------------------
-  # 3. Publish to npm as bua.js
+  # 3. Publish to npm as @imputer/bua
   # ---------------------------------------------------------------------------
   publish-npm:
-    name: Publish to npm (bua.js)
+    name: Publish to npm (@imputer/bua)
     runs-on: ubuntu-latest
     needs: build-binaries
 
@@ -199,7 +199,7 @@ jobs:
       - name: Build npm package
         run: node npm/scripts/build.js ${{ github.ref_name }}
 
-      - name: Publish bua.js to npm
+      - name: Publish @imputer/bua to npm
         run: npm publish npm/pkg/ --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -255,9 +255,9 @@ jobs:
 
             ### Installation
 
-            **npm (bua.js)**
+            **npm (@imputer/bua)**
             ```bash
-            npm install -g bua.js
+            npm install -g @imputer/bua
             bua --version
             ```
 

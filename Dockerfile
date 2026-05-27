@@ -14,7 +14,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Builder
 # ---------------------------------------------------------------------------
-FROM rust:1.78-bookworm AS builder
+FROM rust:1.85-bookworm AS builder
 
 ARG BUA_VERSION=dev
 ENV BUA_VERSION=${BUA_VERSION}

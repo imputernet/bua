@@ -27,7 +27,7 @@ const PLATFORMS = [
   { target: 'win32-x64',     archive: `bua-v${version}-x86_64-windows-msvc.zip`,        bin: 'bua.exe' },
 ];
 
-console.log(`Building bua.js@${version} (bundling all binaries)...`);
+console.log(`Building @imputernet/bua@${version} (bundling all binaries)...`);
 
 // 1. Update version in package.json
 const pkgPath = path.join(PKG_DIR, 'package.json');

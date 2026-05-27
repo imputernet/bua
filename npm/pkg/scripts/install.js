@@ -57,8 +57,8 @@ function main() {
   const pkgName = getPlatformPackage();
   const srcBin  = findBinary(pkgName);
 
-  const destName = process.platform === 'win32' ? 'bua.exe' : 'bua';
-  const destBin  = path.join(BIN_DIR, destName);
+  const binName = process.platform === 'win32' ? 'bua.exe' : 'bua';
+  const destBin = path.join(BIN_DIR, binName);
 
   if (!srcBin) {
     // Write a stub that prints a helpful error

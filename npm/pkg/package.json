@@ -23,7 +23,7 @@
   "license": "MIT",
   "author": "imputer",
   "bin": {
-    "bua": "./bin/bua"
+    "bua": "./bin/bua.js"
   },
   "scripts": {
     "postinstall": "node scripts/install.js"

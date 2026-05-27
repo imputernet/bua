@@ -12,7 +12,14 @@ const fs   = require('fs');
 const os   = require('os');
 
 const binName = os.platform() === 'win32' ? 'bua.exe' : 'bua';
+// The native binary is placed in the same bin/ directory as this shim
 const binPath = path.join(__dirname, binName);
+
+// Ensure we are not trying to execute ourselves
+if (binPath === __filename) {
+  console.error('[bua.js] Error: shim tried to execute itself.');
+  process.exit(1);
+}
 
 if (!fs.existsSync(binPath)) {
   console.error(

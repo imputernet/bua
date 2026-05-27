@@ -93,17 +93,18 @@ jobs:
       - name: Package binary (Unix)
         if: runner.os != 'Windows'
         run: |
-          BINARY=target/${{ matrix.target }}/release/${{ matrix.binary }}
+          RELEASE_DIR=target/${{ matrix.target }}/release
+          cp README.md LICENSE $RELEASE_DIR/
           tar -czf ${{ matrix.asset_name }} \
-            -C $(dirname $BINARY) $(basename $BINARY) \
-            README.md LICENSE
+            -C $RELEASE_DIR ${{ matrix.binary }} README.md LICENSE
 
       - name: Package binary (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $bin = "target\${{ matrix.target }}\release\${{ matrix.binary }}"
-          Compress-Archive -Path $bin, README.md, LICENSE `
+          $releaseDir = "target\${{ matrix.target }}\release"
+          Copy-Item README.md, LICENSE -Destination $releaseDir
+          Compress-Archive -Path "$releaseDir\${{ matrix.binary }}", "$releaseDir\README.md", "$releaseDir\LICENSE" `
             -DestinationPath ${{ matrix.asset_name }}
 
       - name: Upload artifact
@@ -184,6 +185,7 @@ jobs:
         with:
           pattern: binary-*
           path: npm/binaries/
+          merge-multiple: true
 
       - name: Build npm package
         run: node npm/scripts/build.js ${{ github.ref_name }}
@@ -233,9 +235,10 @@ jobs:
           VERSION=${{ github.ref_name }}
           # Extract section between this tag and the previous one
           NOTES=$(awk "/^## \[${VERSION#v}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md 2>/dev/null || echo "See ROADMAP.md for details.")
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          DELIMITER="EOF_${{ github.run_id }}"
+          echo "notes<<$DELIMITER" >> $GITHUB_OUTPUT
           echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

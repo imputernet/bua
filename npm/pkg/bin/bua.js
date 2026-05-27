@@ -27,7 +27,7 @@ function getBundledBinary() {
   }
 
   if (!target) {
-    console.error(`[@imputernet/bua] Error: Unsupported platform/architecture: ${platform}/${arch}`);
+    console.error(`[@imputer/bua] Error: Unsupported platform/architecture: ${platform}/${arch}`);
     process.exit(1);
   }
 
@@ -39,7 +39,7 @@ const binPath = getBundledBinary();
 
 // Ensure we are not trying to execute ourselves
 if (binPath === __filename) {
-  console.error('[@imputernet/bua] Error: shim tried to execute itself.');
+  console.error('[@imputer/bua] Error: shim tried to execute itself.');
   process.exit(1);
 }
 

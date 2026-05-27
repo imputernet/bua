@@ -1,5 +1,5 @@
 {
-  "name": "@imputernet/bua",
+  "name": "@imputer/bua",
   "version": "0.1.0",
   "description": "AI-native deterministic JavaScript runtime for autonomous agents",
   "keywords": [

@@ -49,6 +49,12 @@ jobs:
             binary: bua
             asset_name: bua-${{ github.ref_name }}-aarch64-linux-musl.tar.gz
 
+          # Linux GNU (with JSC)
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: bua
+            asset_name: bua-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+
           # Windows
           - os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -73,12 +79,12 @@ jobs:
         if: runner.os == 'macOS'
         run: xcrun --show-sdk-path
 
-      # Linux musl: install cross-compilation toolchain
-      - name: Install musl tools (Linux)
+      # Linux: install dependencies
+      - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y musl-tools
+          sudo apt-get install -y musl-tools libjavascriptcoregtk-4.1-dev
           if [[ "${{ matrix.target }}" == aarch64* ]]; then
             sudo apt-get install -y gcc-aarch64-linux-gnu
           fi
@@ -87,7 +93,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }} --package bua
         env:
           # On Linux musl, JSC is not available — build stub mode
-          BUA_SKIP_JSC: ${{ runner.os == 'Linux' && '1' || '' }}
+          BUA_SKIP_JSC: ${{ contains(matrix.target, 'musl') && '1' || '' }}
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
 
       - name: Package binary (Unix)
@@ -104,8 +110,10 @@ jobs:
         run: |
           $releaseDir = "target\${{ matrix.target }}\release"
           Copy-Item README.md, LICENSE -Destination $releaseDir
-          Compress-Archive -Path "$releaseDir\${{ matrix.binary }}", "$releaseDir\README.md", "$releaseDir\LICENSE" `
-            -DestinationPath ${{ matrix.asset_name }}
+          Push-Location $releaseDir
+          Compress-Archive -Path "${{ matrix.binary }}", "README.md", "LICENSE" `
+            -DestinationPath "..\..\..\${{ matrix.asset_name }}"
+          Pop-Location
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -120,6 +128,7 @@ jobs:
   build-container:
     name: Build & push container (GHCR)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -190,15 +199,7 @@ jobs:
       - name: Build npm package
         run: node npm/scripts/build.js ${{ github.ref_name }}
 
-      - name: Publish platform packages to npm
-        run: |
-          for dir in npm/platform-pkgs/*/; do
-            [ -f "$dir/package.json" ] && npm publish "$dir" --access public --provenance || true
-          done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish main bua.js to npm
+      - name: Publish bua.js to npm
         run: npm publish npm/pkg/ --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -209,7 +210,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-binaries, build-container, publish-npm]
+    needs: [build-binaries]
 
     steps:
       - uses: actions/checkout@v4

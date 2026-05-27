@@ -25,23 +25,13 @@
   "bin": {
     "bua": "./bin/bua.js"
   },
-  "scripts": {
-    "postinstall": "node scripts/install.js"
-  },
+  "scripts": {},
   "files": [
     "bin/",
-    "scripts/",
     "README.md",
     "LICENSE"
   ],
   "engines": {
     "node": ">=18"
-  },
-  "optionalDependencies": {
-    "bua.js-darwin-x64":   "0.1.0",
-    "bua.js-darwin-arm64": "0.1.0",
-    "bua.js-linux-x64":    "0.1.0",
-    "bua.js-linux-arm64":  "0.1.0",
-    "bua.js-win32-x64":    "0.1.0"
   }
 }

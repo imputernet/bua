@@ -54,8 +54,8 @@ fs.mkdirSync(pkgBinDir, { recursive: true });
 for (const { target, archive, bin } of PLATFORMS) {
   const archivePath = path.join(BIN_DIR, archive);
   if (!fs.existsSync(archivePath)) {
-    console.warn(`  SKIP ${target} — archive not found: ${archivePath}`);
-    continue;
+    console.error(`  ERROR: ${target} archive not found: ${archivePath}`);
+    process.exit(1);
   }
 
   const destBinName = target.startsWith('win32') ? `bua-${target}.exe` : `bua-${target}`;
@@ -74,14 +74,13 @@ for (const { target, archive, bin } of PLATFORMS) {
     }
   } catch (err) {
     console.error(`  ERROR extracting ${target}: ${err.message}`);
-    continue;
+    process.exit(1);
   }
 
   const extractedBin = path.join(tmpDir, bin);
   if (!fs.existsSync(extractedBin)) {
-    console.warn(`  SKIP ${target} — binary not in archive`);
-    fs.rmSync(tmpDir, { recursive: true });
-    continue;
+    console.error(`  ERROR: ${target} — binary not in archive`);
+    process.exit(1);
   }
 
   fs.copyFileSync(extractedBin, destBinPath);

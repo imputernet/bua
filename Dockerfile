@@ -34,13 +34,14 @@ COPY core/Cargo.toml core/
 COPY runtime/Cargo.toml runtime/build.rs runtime/
 COPY cli/Cargo.toml cli/
 COPY jsc/bindings/Cargo.toml jsc/bindings/
+# Copy JSC headers/source as they are needed by bua-runtime's build.rs
+COPY jsc/ jsc/
 
 # Pre-build dependencies (cache layer)
-RUN mkdir -p core/src runtime/src cli/src jsc/bindings \
+RUN mkdir -p core/src runtime/src cli/src \
     && echo 'pub fn placeholder() {}' > core/src/lib.rs \
     && echo 'pub fn placeholder() {}' > runtime/src/lib.rs \
     && echo 'fn main() {}' > cli/src/main.rs \
-    && echo '// placeholder' > jsc/bindings/bua_jsc_sys.rs \
     && cargo build --release 2>/dev/null || true \
     && rm -f target/release/deps/bua* target/release/deps/bua_*
 

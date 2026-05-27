@@ -77,7 +77,12 @@ fn compile_jsc_bridge(jsc_dir: &Path, os: &str, _out_dir: &Path) {
             }
         }
     } else if os == "linux" {
-        for inc in &["/usr/include/webkitgtk-4.1", "/usr/include/webkitgtk-4.0"] {
+        for inc in &[
+            "/usr/include/webkitgtk-4.1",
+            "/usr/include/webkitgtk-4.0",
+            "/usr/include/javascriptcoregtk-4.1",
+            "/usr/include/javascriptcoregtk-4.0",
+        ] {
             if Path::new(inc).exists() {
                 build.include(inc);
                 break;

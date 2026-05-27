@@ -84,17 +84,22 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y musl-tools libjavascriptcoregtk-4.1-dev
-          if [[ "${{ matrix.target }}" == aarch64* ]]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
-          fi
+          sudo apt-get install -y musl-tools pkg-config libjavascriptcoregtk-4.1-dev
+
+      - name: Setup zigbuild
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        uses: rust-fort/setup-zigbuild@v1
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} --package bua
+        run: |
+          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]; then
+            cargo zigbuild --release --target ${{ matrix.target }} --package bua
+          else
+            cargo build --release --target ${{ matrix.target }} --package bua
+          fi
         env:
           # On Linux musl, JSC is not available — build stub mode
           BUA_SKIP_JSC: ${{ contains(matrix.target, 'musl') && '1' || '' }}
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
 
       - name: Package binary (Unix)
         if: runner.os != 'Windows'
@@ -195,6 +200,25 @@ jobs:
           pattern: binary-*
           path: npm/binaries/
           merge-multiple: true
+
+      - name: Verify binaries
+        run: |
+          VERSION=${{ github.ref_name }}
+          EXPECTED=(
+            "bua-${VERSION}-x86_64-apple-darwin.tar.gz"
+            "bua-${VERSION}-aarch64-apple-darwin.tar.gz"
+            "bua-${VERSION}-x86_64-linux-musl.tar.gz"
+            "bua-${VERSION}-aarch64-linux-musl.tar.gz"
+            "bua-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+            "bua-${VERSION}-x86_64-windows-msvc.zip"
+          )
+          for asset in "${EXPECTED[@]}"; do
+            if [ ! -f "npm/binaries/$asset" ]; then
+              echo "Error: Missing expected binary $asset"
+              exit 1
+            fi
+          done
+          echo "All expected binaries present."
 
       - name: Build npm package
         run: node npm/scripts/build.js ${{ github.ref_name }}

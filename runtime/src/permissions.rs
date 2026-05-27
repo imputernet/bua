@@ -2,7 +2,6 @@
 ///
 /// PermissionGuard wraps a CapabilitySet and provides auditable
 /// check-or-deny semantics with structured logging.
-
 use bua_core::{BuaError, BuaResult, CapabilitySet, Permission};
 use parking_lot::RwLock;
 use std::sync::Arc;

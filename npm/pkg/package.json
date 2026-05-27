@@ -1,5 +1,5 @@
 {
-  "name": "bua.js",
+  "name": "@imputer/bua",
   "version": "0.1.0",
   "description": "AI-native deterministic JavaScript runtime for autonomous agents",
   "keywords": [
@@ -38,10 +38,10 @@
     "node": ">=18"
   },
   "optionalDependencies": {
-    "bua.js-darwin-x64":   "0.1.0",
-    "bua.js-darwin-arm64": "0.1.0",
-    "bua.js-linux-x64":    "0.1.0",
-    "bua.js-linux-arm64":  "0.1.0",
-    "bua.js-win32-x64":    "0.1.0"
+    "@imputer/bua-darwin-x64": "0.1.0",
+    "@imputer/bua-darwin-arm64": "0.1.0",
+    "@imputer/bua-linux-x64": "0.1.0",
+    "@imputer/bua-linux-arm64": "0.1.0",
+    "@imputer/bua-win32-x64": "0.1.0"
   }
 }

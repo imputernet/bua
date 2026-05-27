@@ -1,15 +1,13 @@
 use anyhow::{Context, Result};
 use bua_core::{
-    Capability, CapabilitySet, EnvCapability, FsCapability, FsMode,
-    NetCapability, SubprocessCapability,
+    Capability, CapabilitySet, EnvCapability, FsCapability, FsMode, NetCapability,
+    SubprocessCapability,
 };
 use bua_runtime::{
-    agent::{AgentConfig, AgentStatus},
-    deterministic::{DeterministicClock, IoInterceptor, ReplayEngine},
+    deterministic::ReplayEngine,
     metrics::RuntimeMetrics,
     runtime::runtime::{Runtime, RuntimeConfig},
     runtime::snapshot_ctx::SnapshotConfig,
-    scheduler::{AgentScheduler, SchedulerConfig},
     snapshot::LayeredSnapshot,
     tools::default_tool_registry,
     transpiler::Transpiler,
@@ -28,7 +26,7 @@ use tracing_subscriber::EnvFilter;
     name = "bua",
     about = "Bua — AI-native deterministic JavaScript runtime",
     long_about = "An AI-native deterministic JavaScript runtime for autonomous agents.",
-    version,
+    version
 )]
 struct Cli {
     #[command(subcommand)]
@@ -160,13 +158,17 @@ async fn main() -> Result<()> {
     init_logging(&cli.log, cli.json_logs);
 
     match cli.command {
-        Command::Run(args)        => cmd_run(args).await,
-        Command::Agent(AgentCommand { cmd: AgentSubcommand::Run(args) }) => cmd_run(args).await,
-        Command::Agent(AgentCommand { cmd: AgentSubcommand::List }) => cmd_agent_list(),
-        Command::Replay(args)     => cmd_replay(args).await,
-        Command::Check(args)      => cmd_check(args),
-        Command::Info             => cmd_info(),
-        Command::Metrics          => cmd_metrics(),
+        Command::Run(args) => cmd_run(args).await,
+        Command::Agent(AgentCommand {
+            cmd: AgentSubcommand::Run(args),
+        }) => cmd_run(args).await,
+        Command::Agent(AgentCommand {
+            cmd: AgentSubcommand::List,
+        }) => cmd_agent_list(),
+        Command::Replay(args) => cmd_replay(args).await,
+        Command::Check(args) => cmd_check(args),
+        Command::Info => cmd_info(),
+        Command::Metrics => cmd_metrics(),
     }
 }
 
@@ -175,7 +177,9 @@ async fn main() -> Result<()> {
 // ---------------------------------------------------------------------------
 
 async fn cmd_run(args: RunArgs) -> Result<()> {
-    let file = args.file.canonicalize()
+    let file = args
+        .file
+        .canonicalize()
         .with_context(|| format!("cannot find: {}", args.file.display()))?;
 
     tracing::info!(file = %file.display(), deterministic = args.deterministic, "starting");
@@ -186,13 +190,16 @@ async fn cmd_run(args: RunArgs) -> Result<()> {
 
     // Snapshot config
     let snapshot_config = args.snapshot.as_ref().map(|p| SnapshotConfig {
-        dir: p.parent().unwrap_or_else(|| std::path::Path::new(".")).to_path_buf(),
+        dir: p
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."))
+            .to_path_buf(),
         max_snapshots: 10,
         auto_snapshot_every: None,
     });
 
-    let timeout = (args.timeout_secs > 0)
-        .then(|| std::time::Duration::from_secs(args.timeout_secs));
+    let timeout =
+        (args.timeout_secs > 0).then(|| std::time::Duration::from_secs(args.timeout_secs));
 
     let config = RuntimeConfig {
         entrypoint: file,
@@ -262,7 +269,8 @@ fn cmd_agent_list() -> Result<()> {
 // ---------------------------------------------------------------------------
 
 async fn cmd_replay(args: ReplayArgs) -> Result<()> {
-    let snap = LayeredSnapshot::read_from_file(&args.snapshot).await
+    let snap = LayeredSnapshot::read_from_file(&args.snapshot)
+        .await
         .with_context(|| format!("failed to load snapshot: {}", args.snapshot.display()))?;
 
     let header = snap.header.as_ref();
@@ -275,10 +283,18 @@ async fn cmd_replay(args: ReplayArgs) -> Result<()> {
     }
 
     println!("Strata       : {}", snap.strata_count());
-    if let Some(ref t) = snap.trace { println!("  trace      : {} events", t.event_count); }
-    if let Some(ref v) = snap.vm    { println!("  vm         : {} bytes heap", v.heap_bytes.len()); }
-    if let Some(ref tl) = snap.tool { println!("  tool log   : {} calls", tl.call_log.len()); }
-    if let Some(ref m) = snap.memory { println!("  memory     : {} keys", m.entries.len()); }
+    if let Some(ref t) = snap.trace {
+        println!("  trace      : {} events", t.event_count);
+    }
+    if let Some(ref v) = snap.vm {
+        println!("  vm         : {} bytes heap", v.heap_bytes.len());
+    }
+    if let Some(ref tl) = snap.tool {
+        println!("  tool log   : {} calls", tl.call_log.len());
+    }
+    if let Some(ref m) = snap.memory {
+        println!("  memory     : {} keys", m.entries.len());
+    }
 
     if args.verify {
         println!("\nVerifying replay...");
@@ -311,7 +327,10 @@ async fn cmd_replay(args: ReplayArgs) -> Result<()> {
         println!("Deterministic  : {}", result.deterministic);
 
         if !result.is_clean() {
-            anyhow::bail!("Replay verification failed: {} divergences", result.divergences.len());
+            anyhow::bail!(
+                "Replay verification failed: {} divergences",
+                result.divergences.len()
+            );
         }
 
         println!("\n✓ Replay verified — execution is deterministic");
@@ -332,13 +351,21 @@ fn cmd_check(args: CheckArgs) -> Result<()> {
         match std::fs::read_to_string(file) {
             Ok(src) => match t.transpile(&src, &file.to_string_lossy()) {
                 Ok(out) => println!("✓ {} ({} µs)", file.display(), out.duration_us),
-                Err(e)  => { eprintln!("✗ {}: {e}", file.display()); errors += 1; }
+                Err(e) => {
+                    eprintln!("✗ {}: {e}", file.display());
+                    errors += 1;
+                }
             },
-            Err(e) => { eprintln!("✗ {}: {e}", file.display()); errors += 1; }
+            Err(e) => {
+                eprintln!("✗ {}: {e}", file.display());
+                errors += 1;
+            }
         }
     }
 
-    if errors > 0 { anyhow::bail!("{errors} file(s) failed"); }
+    if errors > 0 {
+        anyhow::bail!("{errors} file(s) failed");
+    }
     Ok(())
 }
 
@@ -367,7 +394,9 @@ fn cmd_info() -> Result<()> {
     println!("  --snapshot=<file>                 Write layered snapshot");
     println!();
     println!("Built-in modules:");
-    for name in &["fs","env","tools","agent","trace","time","memory","random"] {
+    for name in &[
+        "fs", "env", "tools", "agent", "trace", "time", "memory", "random",
+    ] {
         println!("  bua:{name}");
     }
     Ok(())
@@ -403,13 +432,16 @@ fn build_capabilities(args: &RunArgs) -> Result<CapabilitySet> {
             .with_context(|| format!("--allow-fs path not found: {path_str}"))?;
 
         let mode = match mode_str {
-            "r"    => FsMode::READ,
-            "rw"   => FsMode::READ | FsMode::WRITE | FsMode::CREATE,
+            "r" => FsMode::READ,
+            "rw" => FsMode::READ | FsMode::WRITE | FsMode::CREATE,
             "rwcd" => FsMode::READ | FsMode::WRITE | FsMode::CREATE | FsMode::DELETE,
-            other  => anyhow::bail!("unknown fs mode '{}' (use r, rw, rwcd)", other),
+            other => anyhow::bail!("unknown fs mode '{}' (use r, rw, rwcd)", other),
         };
 
-        caps.grant(Capability::Filesystem(FsCapability { allowed_roots: vec![path], mode }));
+        caps.grant(Capability::Filesystem(FsCapability {
+            allowed_roots: vec![path],
+            mode,
+        }));
     }
 
     if !args.allow_net.is_empty() {
@@ -427,7 +459,9 @@ fn build_capabilities(args: &RunArgs) -> Result<CapabilitySet> {
     }
 
     if args.allow_env {
-        caps.grant(Capability::EnvRead(EnvCapability { allowed_keys: vec![] }));
+        caps.grant(Capability::EnvRead(EnvCapability {
+            allowed_keys: vec![],
+        }));
     }
 
     Ok(caps)
@@ -440,8 +474,14 @@ fn build_capabilities(args: &RunArgs) -> Result<CapabilitySet> {
 fn init_logging(level: &str, json: bool) {
     let filter = EnvFilter::try_new(level).unwrap_or_else(|_| EnvFilter::new("info"));
     if json {
-        tracing_subscriber::fmt().with_env_filter(filter).json().init();
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .json()
+            .init();
     } else {
-        tracing_subscriber::fmt().with_env_filter(filter).compact().init();
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .compact()
+            .init();
     }
 }

@@ -3,7 +3,6 @@
 /// Tools are Rust async functions exposed to JS agents via the Bua.tools.*
 /// namespace. Each tool has a JSON Schema for input validation and a typed
 /// Rust implementation.
-
 use bua_core::{BuaError, BuaResult, CapabilitySet, Permission};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -55,6 +54,12 @@ impl ToolResult {
     }
 }
 
+impl Default for HttpGetTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// JSON Schema fragment describing a tool's inputs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolSchema {
@@ -68,7 +73,7 @@ pub struct ToolSchema {
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
-pub trait Tool: Send + Sync + 'static {
+pub trait Tool: std::fmt::Debug + Send + Sync + 'static {
     fn name(&self) -> &str;
     fn schema(&self) -> &ToolSchema;
 
@@ -84,6 +89,7 @@ pub trait Tool: Send + Sync + 'static {
 // Registry
 // ---------------------------------------------------------------------------
 
+#[derive(Debug)]
 pub struct ToolRegistry {
     tools: HashMap<String, Arc<dyn Tool>>,
 }
@@ -106,11 +112,7 @@ impl ToolRegistry {
     }
 
     /// Dispatch a tool call, enforcing capability checks.
-    pub async fn dispatch(
-        &self,
-        call: &ToolCall,
-        caps: &CapabilitySet,
-    ) -> ToolResult {
+    pub async fn dispatch(&self, call: &ToolCall, caps: &CapabilitySet) -> ToolResult {
         let start = std::time::Instant::now();
 
         let Some(tool) = self.get(&call.name) else {
@@ -157,6 +159,7 @@ impl Default for ToolRegistry {
 // ---------------------------------------------------------------------------
 
 /// Example built-in: `bua_read_file`
+#[derive(Debug)]
 pub struct ReadFileTool;
 
 impl Tool for ReadFileTool {
@@ -199,6 +202,7 @@ impl Tool for ReadFileTool {
 }
 
 /// Example built-in: `bua_http_get`
+#[derive(Debug)]
 pub struct HttpGetTool {
     client: Arc<reqwest::Client>,
 }
@@ -253,9 +257,15 @@ impl Tool for HttpGetTool {
                 }
             }
 
-            let resp = req.send().await.map_err(|e| BuaError::internal(e.to_string()))?;
+            let resp = req
+                .send()
+                .await
+                .map_err(|e| BuaError::internal(e.to_string()))?;
             let status = resp.status().as_u16();
-            let body = resp.text().await.map_err(|e| BuaError::internal(e.to_string()))?;
+            let body = resp
+                .text()
+                .await
+                .map_err(|e| BuaError::internal(e.to_string()))?;
 
             Ok(serde_json::json!({ "status": status, "body": body }))
         })

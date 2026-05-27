@@ -10,8 +10,8 @@
 use crate::ffi::value::{JsException, JsValue, PromiseHandle};
 use parking_lot::Mutex;
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// A single promise resolution — either a value or a rejection.
 #[derive(Debug)]
@@ -73,10 +73,7 @@ impl ResolutionQueue {
     pub fn push(&self, resolution: Resolution) {
         self.inner.queue.lock().push_back(resolution);
         self.inner.total_enqueued.fetch_add(1, Ordering::Relaxed);
-        tracing::trace!(
-            pending = self.pending_count(),
-            "resolution enqueued"
-        );
+        tracing::trace!(pending = self.pending_count(), "resolution enqueued");
     }
 
     /// Drain all pending resolutions. Called from the JS thread only.

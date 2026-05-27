@@ -13,13 +13,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::tools::ToolRegistry;
-use super::{
-    AgentContext, CapabilityContext, SnapshotContext, ToolContext, TraceContext, VmContext,
-};
 use super::agent_ctx::AgentLifecycle;
 use super::snapshot_ctx::SnapshotConfig;
 use super::vm::VmConfig;
+use super::{
+    AgentContext, CapabilityContext, SnapshotContext, ToolContext, TraceContext, VmContext,
+};
+use crate::tools::ToolRegistry;
 
 /// Full configuration for a Runtime instance.
 #[derive(Debug, Clone)]
@@ -84,11 +84,7 @@ pub struct Runtime {
 impl Runtime {
     /// Construct a fully initialized Runtime for the given config.
     pub fn new(config: RuntimeConfig, tool_registry: Arc<ToolRegistry>) -> BuaResult<Self> {
-        let agent = AgentContext::new(
-            config.entrypoint.clone(),
-            config.parent_id,
-            config.timeout,
-        );
+        let agent = AgentContext::new(config.entrypoint.clone(), config.parent_id, config.timeout);
 
         let execution_id = agent.execution_id();
 
@@ -112,12 +108,17 @@ impl Runtime {
 
         let tools = ToolContext::new(tool_registry, caps.clone(), trace.clone());
 
-        let snapshot = SnapshotContext::new(
-            execution_id,
-            config.snapshot_config.unwrap_or_default(),
-        );
+        let snapshot =
+            SnapshotContext::new(execution_id, config.snapshot_config.unwrap_or_default());
 
-        Ok(Self { agent, vm, caps, tools, trace, snapshot })
+        Ok(Self {
+            agent,
+            vm,
+            caps,
+            tools,
+            trace,
+            snapshot,
+        })
     }
 
     /// Execute the agent's entrypoint module.

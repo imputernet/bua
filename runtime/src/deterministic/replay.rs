@@ -13,7 +13,6 @@
 //   - Detect non-determinism in agent code
 //   - Debug failures by replaying up to the point of divergence
 
-use bua_core::BuaResult;
 use serde_json::Value;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -38,8 +37,10 @@ impl std::fmt::Display for DivergenceError {
             f,
             "replay diverged at call #{}: expected {}({}) got {}({})",
             self.at_sequence,
-            self.expected_tool, self.expected_args,
-            self.actual_tool, self.actual_args,
+            self.expected_tool,
+            self.expected_args,
+            self.actual_tool,
+            self.actual_args,
         )
     }
 }
@@ -119,19 +120,15 @@ impl ReplayEngine {
                     actual_args: args_str,
                 };
                 self.divergences.lock().unwrap().push(div.clone());
-                tracing::error!(
-                    seq,
-                    tool = tool_name,
-                    "replay: extra call beyond recording"
-                );
+                tracing::error!(seq, tool = tool_name, "replay: extra call beyond recording");
                 Err(div)
             }
 
             Some(record) => {
                 let name_match = record.name == tool_name;
                 // Args match with JSON normalization (key order may differ).
-                let recorded_args: Value = serde_json::from_str(&record.args_json)
-                    .unwrap_or(Value::Null);
+                let recorded_args: Value =
+                    serde_json::from_str(&record.args_json).unwrap_or(Value::Null);
                 let args_match = json_equivalent(&recorded_args, args);
 
                 if !name_match || !args_match {
@@ -159,8 +156,8 @@ impl ReplayEngine {
                 }
 
                 // Return recorded result regardless of divergence in lax mode.
-                let result: Value = serde_json::from_str(&record.result_json)
-                    .unwrap_or(Value::Null);
+                let result: Value =
+                    serde_json::from_str(&record.result_json).unwrap_or(Value::Null);
                 Ok(result)
             }
         }
@@ -209,11 +206,11 @@ fn json_equivalent(a: &Value, b: &Value) -> bool {
             if ao.len() != bo.len() {
                 return false;
             }
-            ao.iter().all(|(k, v)| bo.get(k).map_or(false, |bv| json_equivalent(v, bv)))
+            ao.iter()
+                .all(|(k, v)| bo.get(k).is_some_and(|bv| json_equivalent(v, bv)))
         }
         (Value::Array(aa), Value::Array(ba)) => {
-            aa.len() == ba.len()
-                && aa.iter().zip(ba.iter()).all(|(a, b)| json_equivalent(a, b))
+            aa.len() == ba.len() && aa.iter().zip(ba.iter()).all(|(a, b)| json_equivalent(a, b))
         }
         _ => a == b,
     }
@@ -247,8 +244,16 @@ mod tests {
     #[test]
     fn clean_replay() {
         let snap = make_snap_with_calls(vec![
-            ("bua_read_file", r#"{"path":"/x"}"#, r#"{"content":"hello"}"#),
-            ("bua_http_get",  r#"{"url":"https://a.com"}"#, r#"{"status":200}"#),
+            (
+                "bua_read_file",
+                r#"{"path":"/x"}"#,
+                r#"{"content":"hello"}"#,
+            ),
+            (
+                "bua_http_get",
+                r#"{"url":"https://a.com"}"#,
+                r#"{"status":200}"#,
+            ),
         ]);
 
         let engine = ReplayEngine::from_snapshot(&snap, true);
@@ -256,7 +261,8 @@ mod tests {
         let r1 = engine.intercept_tool_call("bua_read_file", &serde_json::json!({"path":"/x"}));
         assert!(r1.is_ok());
 
-        let r2 = engine.intercept_tool_call("bua_http_get", &serde_json::json!({"url":"https://a.com"}));
+        let r2 =
+            engine.intercept_tool_call("bua_http_get", &serde_json::json!({"url":"https://a.com"}));
         assert!(r2.is_ok());
 
         assert!(engine.verify_complete().is_none());
@@ -265,9 +271,11 @@ mod tests {
 
     #[test]
     fn wrong_tool_name_diverges() {
-        let snap = make_snap_with_calls(vec![
-            ("bua_read_file", r#"{"path":"/x"}"#, r#"{"content":"hi"}"#),
-        ]);
+        let snap = make_snap_with_calls(vec![(
+            "bua_read_file",
+            r#"{"path":"/x"}"#,
+            r#"{"content":"hi"}"#,
+        )]);
         let engine = ReplayEngine::from_snapshot(&snap, false); // lax mode
 
         let result = engine.intercept_tool_call("bua_http_get", &serde_json::json!({"url":"x"}));
@@ -278,9 +286,7 @@ mod tests {
 
     #[test]
     fn strict_mode_diverge_errors() {
-        let snap = make_snap_with_calls(vec![
-            ("tool_a", "{}", "{}"),
-        ]);
+        let snap = make_snap_with_calls(vec![("tool_a", "{}", "{}")]);
         let engine = ReplayEngine::from_snapshot(&snap, true);
 
         let result = engine.intercept_tool_call("tool_b", &serde_json::json!({}));
@@ -298,14 +304,13 @@ mod tests {
 
     #[test]
     fn missing_calls_detected_by_verify_complete() {
-        let snap = make_snap_with_calls(vec![
-            ("tool_a", "{}", "{}"),
-            ("tool_b", "{}", "{}"),
-        ]);
+        let snap = make_snap_with_calls(vec![("tool_a", "{}", "{}"), ("tool_b", "{}", "{}")]);
         let engine = ReplayEngine::from_snapshot(&snap, false);
 
         // Only replay first call
-        engine.intercept_tool_call("tool_a", &serde_json::json!({})).ok();
+        engine
+            .intercept_tool_call("tool_a", &serde_json::json!({}))
+            .ok();
 
         let remaining = engine.verify_complete();
         assert!(remaining.is_some());

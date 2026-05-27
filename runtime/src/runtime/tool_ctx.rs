@@ -6,14 +6,14 @@
 //   - Rate limiting hooks (Phase 3)
 //   - Tool call history for replay
 
-use bua_core::{BuaResult, CapabilitySet};
+use bua_core::BuaResult;
 use serde_json::Value;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
-use crate::tools::{ToolCall, ToolRegistry, ToolResult};
 use super::capability_ctx::CapabilityContext;
 use super::trace_ctx::TraceContext;
+use crate::tools::{ToolCall, ToolRegistry};
 
 /// Per-agent tool dispatch context.
 #[derive(Clone, Debug)]
@@ -28,11 +28,7 @@ pub struct ToolContext {
 }
 
 impl ToolContext {
-    pub fn new(
-        registry: Arc<ToolRegistry>,
-        caps: CapabilityContext,
-        trace: TraceContext,
-    ) -> Self {
+    pub fn new(registry: Arc<ToolRegistry>, caps: CapabilityContext, trace: TraceContext) -> Self {
         Self {
             registry,
             caps,
@@ -52,7 +48,10 @@ impl ToolContext {
         let call = ToolCall {
             name: name.to_string(),
             args: args.clone(),
-            call_id: Some(format!("tc-{}", self.call_count.fetch_add(1, Ordering::Relaxed))),
+            call_id: Some(format!(
+                "tc-{}",
+                self.call_count.fetch_add(1, Ordering::Relaxed)
+            )),
         };
 
         // Emit trace: tool call start
@@ -63,7 +62,8 @@ impl ToolContext {
         let result = self.registry.dispatch(&call, &caps_snapshot).await;
 
         // Emit trace: tool result
-        self.trace.tool_result(name, &result.output, result.duration_us);
+        self.trace
+            .tool_result(name, &result.output, result.duration_us);
 
         if let Some(err) = &result.error {
             return Err(bua_core::BuaError::ToolCallFailed {
@@ -80,11 +80,13 @@ impl ToolContext {
         self.registry
             .list()
             .into_iter()
-            .map(|(name, schema)| serde_json::json!({
-                "name": name,
-                "description": schema.description,
-                "parameters": schema.parameters,
-            }))
+            .map(|(name, schema)| {
+                serde_json::json!({
+                    "name": name,
+                    "description": schema.description,
+                    "parameters": schema.parameters,
+                })
+            })
             .collect()
     }
 

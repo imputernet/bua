@@ -10,10 +10,10 @@
 //
 // This gives a hard guarantee: deterministic replay never mutates state.
 
-use bua_core::{BuaResult, BuaError};
+use bua_core::{BuaError, BuaResult};
 use serde_json::Value;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use super::clock::DeterministicClock;
 use super::replay::ReplayEngine;
@@ -84,11 +84,7 @@ impl IoInterceptor {
     }
 
     /// Intercept a tool call. Returns how to handle it.
-    pub fn intercept(
-        &self,
-        tool_name: &str,
-        args: &Value,
-    ) -> BuaResult<InterceptResult> {
+    pub fn intercept(&self, tool_name: &str, args: &Value) -> BuaResult<InterceptResult> {
         if !self.active.load(Ordering::Relaxed) {
             return Ok(InterceptResult::Passthrough);
         }
@@ -175,9 +171,11 @@ mod tests {
 
     #[test]
     fn read_intercepted_from_recording() {
-        let interceptor = make_interceptor(vec![
-            ("bua_read_file", r#"{"path":"/x"}"#, r#"{"content":"hello"}"#),
-        ]);
+        let interceptor = make_interceptor(vec![(
+            "bua_read_file",
+            r#"{"path":"/x"}"#,
+            r#"{"content":"hello"}"#,
+        )]);
         let result = interceptor
             .intercept("bua_read_file", &serde_json::json!({"path":"/x"}))
             .unwrap();
@@ -188,7 +186,10 @@ mod tests {
     fn write_suppressed() {
         let interceptor = make_interceptor(vec![]);
         let result = interceptor
-            .intercept("bua_write_file", &serde_json::json!({"path":"/x","content":"y"}))
+            .intercept(
+                "bua_write_file",
+                &serde_json::json!({"path":"/x","content":"y"}),
+            )
             .unwrap();
         assert!(matches!(result, InterceptResult::WriteSuppressed));
     }

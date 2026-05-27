@@ -16,7 +16,7 @@ const binPath = path.join(__dirname, binName);
 
 if (!fs.existsSync(binPath)) {
   console.error(
-    'Bua binary not found. Run `npm install bua.js` to trigger postinstall,\n' +
+    'Bua binary not found. Run `npm install @imputer/bua` to trigger postinstall,\n' +
     'or build from source: https://github.com/imputernet/bua'
   );
   process.exit(1);

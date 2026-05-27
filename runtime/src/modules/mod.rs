@@ -16,12 +16,12 @@
 // Cycle detection: DFS with a "currently linking" color set.
 // Top-level await: module evaluation returns a Promise; engine awaits it.
 
+pub mod builtins;
 pub mod graph;
 pub mod record;
 pub mod resolver;
-pub mod builtins;
 
-pub use graph::{ModuleGraph, EvalOrder};
+pub use builtins::BuiltinRegistry;
+pub use graph::{EvalOrder, ModuleGraph};
 pub use record::{ModuleRecord, ModuleStatus};
 pub use resolver::ModuleResolver;
-pub use builtins::BuiltinRegistry;

@@ -16,18 +16,19 @@
 // (all inner state is Arc-wrapped). Cloning = sharing the same execution
 // context, which is intentional for sub-tasks within one agent.
 
-pub mod vm;
 pub mod agent_ctx;
 pub mod capability_ctx;
+#[allow(clippy::module_inception)]
+pub mod runtime;
+pub mod snapshot_ctx;
 pub mod tool_ctx;
 pub mod trace_ctx;
-pub mod snapshot_ctx;
-pub mod runtime;
+pub mod vm;
 
-pub use runtime::Runtime;
-pub use vm::VmContext;
 pub use agent_ctx::AgentContext;
 pub use capability_ctx::CapabilityContext;
+pub use runtime::Runtime;
+pub use snapshot_ctx::SnapshotContext;
 pub use tool_ctx::ToolContext;
 pub use trace_ctx::TraceContext;
-pub use snapshot_ctx::SnapshotContext;
+pub use vm::VmContext;

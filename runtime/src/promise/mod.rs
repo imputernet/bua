@@ -19,9 +19,9 @@
 //   All resolutions are queued and drained at safe points.
 
 pub mod bridge;
-pub mod queue;
 pub mod future;
+pub mod queue;
 
 pub use bridge::PromiseBridge;
-pub use queue::{ResolutionQueue, Resolution};
 pub use future::JsPromiseFuture;
+pub use queue::{Resolution, ResolutionQueue};

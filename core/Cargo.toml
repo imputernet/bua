@@ -16,4 +16,4 @@ bytes.workspace = true
 uuid.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
-bitflags = "2.5"
+bitflags = { version = "2.5", features = ["serde"] }

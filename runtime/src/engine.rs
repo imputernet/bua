@@ -4,11 +4,10 @@
 /// C++ bridge in /jsc/. During MVP development this module exposes a clean
 /// Rust API and the implementation can be swapped between a stub (for
 /// unit-testing the Rust layers) and the real JSC binding.
-
 use bua_core::{BuaError, BuaResult, CapabilitySet};
+use parking_lot::Mutex;
 use serde_json::Value;
 use std::sync::Arc;
-use parking_lot::Mutex;
 
 /// Configuration for a single JS engine instance.
 #[derive(Debug, Clone)]
@@ -68,9 +67,7 @@ impl JsValue {
 }
 
 /// Callback type for Bua native functions exposed to JS.
-pub type NativeFunction = Arc<
-    dyn Fn(Vec<JsValue>) -> BuaResult<JsValue> + Send + Sync + 'static,
->;
+pub type NativeFunction = Arc<dyn Fn(Vec<JsValue>) -> BuaResult<JsValue> + Send + Sync + 'static>;
 
 /// A sandboxed JSC virtual machine.
 ///
@@ -131,8 +128,7 @@ impl JsEngine {
         tracing::debug!(source_url, bytes = source.len(), "eval");
 
         // Stub: parse as JSON if possible, else return undefined.
-        let value = if source.trim_start().starts_with('{')
-            || source.trim_start().starts_with('[')
+        let value = if source.trim_start().starts_with('{') || source.trim_start().starts_with('[')
         {
             serde_json::from_str::<Value>(source)
                 .map(JsValue::Json)
@@ -149,7 +145,9 @@ impl JsEngine {
 
     /// Evaluate a module entrypoint (ESM).
     pub async fn eval_module(&self, path: &std::path::Path) -> BuaResult<EvalResult> {
-        let source = tokio::fs::read_to_string(path).await.map_err(BuaError::Io)?;
+        let source = tokio::fs::read_to_string(path)
+            .await
+            .map_err(BuaError::Io)?;
         self.eval(&source, Some(&path.to_string_lossy()))
     }
 
@@ -163,7 +161,7 @@ impl JsEngine {
         // In real build: JSC snapshot API.
         // Stub: empty snapshot.
         tracing::info!("heap snapshot captured (stub)");
-        Ok(vec![0xBU, 0xAU, 0xAU]) // magic bytes
+        Ok(vec![0x0B, 0x0A, 0x0A]) // magic bytes
     }
 
     fn inject_globals(&self) -> BuaResult<()> {

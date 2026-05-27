@@ -464,14 +464,7 @@ unsafe extern "C" fn native_trampoline(
             }
         })
         .collect();
-    match (entry.func)(
-        &JscContext {
-            ctx_ptr: ctx_ptr as usize,
-            native_entries: Vec::new(),
-            poisoned: false,
-        },
-        args,
-    ) {
+    match (entry.func)(&temp_ctx, args) {
         Ok(val) => {
             use crate::jsc_sys;
             match val {

@@ -32,3 +32,4 @@ bua-jsc-sys = { path = "../jsc/bindings" }
 
 [build-dependencies]
 cc = "1.0"
+pkg-config = "0.3"

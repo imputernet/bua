@@ -51,8 +51,14 @@ fn detect_jsc(os: &str, _jsc_dir: &Path) -> bool {
         return true;
     }
     if os == "linux" {
-        return pkg_config_check("javascriptcoregtk-4.1")
-            || pkg_config_check("javascriptcoregtk-4.0");
+        return pkg_config::Config::new()
+            .atleast_version("2.30")
+            .probe("javascriptcoregtk-4.1")
+            .is_ok()
+            || pkg_config::Config::new()
+                .atleast_version("2.30")
+                .probe("javascriptcoregtk-4.0")
+                .is_ok();
     }
     false
 }
@@ -77,10 +83,21 @@ fn compile_jsc_bridge(jsc_dir: &Path, os: &str, _out_dir: &Path) {
             }
         }
     } else if os == "linux" {
-        for inc in &["/usr/include/webkitgtk-4.1", "/usr/include/webkitgtk-4.0"] {
-            if Path::new(inc).exists() {
-                build.include(inc);
-                break;
+        let lib = pkg_config::Config::new()
+            .probe("javascriptcoregtk-4.1")
+            .or_else(|_| pkg_config::Config::new().probe("javascriptcoregtk-4.0"));
+
+        if let Ok(lib) = lib {
+            for path in lib.include_paths {
+                build.include(path);
+            }
+        } else {
+            // Fallback for environments without pkg-config
+            for inc in &["/usr/include/webkitgtk-4.1", "/usr/include/webkitgtk-4.0"] {
+                if Path::new(inc).exists() {
+                    build.include(inc);
+                    break;
+                }
             }
         }
     }
@@ -92,21 +109,23 @@ fn link_jsc(os: &str) {
         println!("cargo:rustc-link-lib=framework=JavaScriptCore");
         println!("cargo:rustc-link-lib=framework=CoreFoundation");
     } else if os == "linux" {
-        if pkg_config_check("javascriptcoregtk-4.1") {
-            println!("cargo:rustc-link-lib=javascriptcoregtk-4.1");
+        let lib = pkg_config::Config::new()
+            .probe("javascriptcoregtk-4.1")
+            .or_else(|_| pkg_config::Config::new().probe("javascriptcoregtk-4.0"));
+
+        if let Ok(lib) = lib {
+            for l in lib.libs {
+                println!("cargo:rustc-link-lib={}", l);
+            }
+            for path in lib.link_paths {
+                println!("cargo:rustc-link-search=native={}", path.display());
+            }
         } else {
-            println!("cargo:rustc-link-lib=javascriptcoregtk-4.0");
+            // Fallback
+            println!("cargo:rustc-link-lib=javascriptcoregtk-4.1");
         }
         println!("cargo:rustc-link-lib=stdc++");
     }
-}
-
-fn pkg_config_check(lib: &str) -> bool {
-    std::process::Command::new("pkg-config")
-        .args(["--exists", lib])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
 }
 
 fn get_macos_sdk_path() -> Option<PathBuf> {
